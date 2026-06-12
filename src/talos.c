@@ -1,4 +1,7 @@
+#include "gui/talos_gui.hpp"
+#include "runtime/talos_runtime.h"
 #include "talos_cpu.h"
+#include "talos_sdl.h"
 #include "talos_mem.h"
 #include "talos_state.h"
 #include "talos_update.h"
@@ -12,11 +15,10 @@
 
 struct mem_arena *g_talos_global_arena = nullptr;
 
-i32 main(int argc, char **argv)
-{
-    (void) argc;
-    (void) argv;
+struct talos_ctx g_talos_ctx = {0};
 
+static i32 talos_init(void)
+{
     i32 result = 0;
 
     if (vx_init() != VX_OK)
@@ -37,6 +39,30 @@ i32 main(int argc, char **argv)
         result = VX_EXIT_FAILURE;
     }
 
+    if (talos_sdl_init(&g_talos_ctx) != VX_OK)
+    {
+        result = VX_EXIT_FAILURE;
+    }
+
+    return result;
+}
+
+static void talos_quit(void)
+{
+    talos_sdl_shutdown(&g_talos_ctx);
+
+    mem_arena_destroy(g_talos_global_arena);
+    mem_shutdown();
+    vx_shutdown();
+}
+
+i32 main(int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    i32 result = talos_init();
+
     if (result != VX_EXIT_FAILURE)
     {
         talos_state state = {0};
@@ -46,6 +72,9 @@ i32 main(int argc, char **argv)
         talos_update_start(&state);
 
         // render loop will go here
+
+        talos_runtime(&g_talos_ctx);
+
         struct timespec ts = {.tv_sec = 1, .tv_nsec = 0};
         for (i32 i = 0; i < 20; i++)
         {
@@ -60,8 +89,6 @@ i32 main(int argc, char **argv)
         talos_cpu_destroy(&state.cpu);
     }
 
-    mem_arena_destroy(g_talos_global_arena);
-    mem_shutdown();
-    vx_shutdown();
+    talos_quit();
     return result;
 }
