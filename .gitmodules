@@ -1,0 +1,3 @@
+[submodule "external/vx"]
+	path = external/vx
+	url = https://github.com/vsix8625/vx.git
