@@ -3,6 +3,9 @@ crater/
 compile_commands.json
 .clang-format
 
+imgui.ini
+assets/
+
 # Prerequisites
 *.d
 

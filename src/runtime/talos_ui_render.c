@@ -1,0 +1,286 @@
+#include "../gui/talos_gui.h"
+
+#include "talos_state.h"
+#include <inttypes.h>
+
+void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
+{
+    if (state == nullptr)
+    {
+        return;
+    }
+
+    talos_gui_set_next_window_pos(0.0f, 0.0f);
+    talos_gui_set_next_window_size((f32) width, (f32) height);
+
+    talos_gui_set_next_window_bg_alpha(0.0f);
+
+    i32 canvas_flags =
+        (i32) (TALOS_GUI_WINDOW_NO_DECORATION | TALOS_GUI_WINDOW_NO_MOVE |
+               TALOS_GUI_WINDOW_NO_BRING_TO_FRONT_ON_FOCUS | TALOS_GUI_WINDOW_NO_INPUTS);
+
+    if (!talos_gui_begin("TalosMaster", nullptr, canvas_flags))
+    {
+        talos_gui_end();
+        return;
+    }
+
+    talos_gui_push_font_large();
+
+    char header_buf[VX_BUF_SIZE_128];
+    snprintf(header_buf, sizeof(header_buf), "Talos System Monitor | %s", state->cpu.model);
+    talos_gui_text(header_buf);
+
+    talos_gui_pop_font();
+
+    talos_gui_separator();
+    talos_gui_spacing();
+
+    f32 left_margin  = 16.0f;
+    f32 padding      = 16.0f;
+    f32 usable_width = (f32) width - (left_margin * 2.0f);
+    f32 card_width   = (usable_width - padding) * 0.5f;
+
+    i32 card_flags = (i32) (TALOS_GUI_WINDOW_NO_TITLE_BAR | TALOS_GUI_WINDOW_NO_RESIZE |
+                            TALOS_GUI_WINDOW_NO_MOVE);
+
+    f32 left_column_x   = left_margin;
+    f32 half_height_cpu = ((f32) height - 80.0f - padding) * 0.5f;
+
+    talos_gui_set_next_window_pos(left_column_x, 60.0f);
+    talos_gui_set_next_window_size(card_width, (f32) half_height_cpu);
+
+    talos_gui_push_font_small();
+    if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
+    {
+        talos_gui_text("Processor Telemetry");
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        f32 aggregate_load = state->cpu.usage[0];
+
+        char agg_text[VX_BUF_SIZE_64];
+        snprintf(agg_text, sizeof(agg_text), "Total Workload: %.1f%%", aggregate_load);
+        talos_gui_text(agg_text);
+
+        talos_gui_progress_bar(aggregate_load / 100.0f, "");
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        for (u32 i = 0; i < state->cpu.core_count; ++i)
+        {
+            f32 core_load = state->cpu.usage[i + 1];
+
+            char core_fmt[32];
+            snprintf(core_fmt, sizeof(core_fmt), "Core %-2u", i);
+            talos_gui_text(core_fmt);
+
+            talos_gui_same_line();
+            talos_gui_progress_bar(core_load / 100.0f, "");
+        }
+    }
+    talos_gui_end();
+
+    // Process card — bottom left
+
+    talos_gui_set_next_window_pos(left_column_x, 60.0f + half_height_cpu + padding);
+    talos_gui_set_next_window_size(card_width, half_height_cpu);
+
+    i32 proc_card_flags =
+        card_flags | TALOS_GUI_WINDOW_NO_SCROLLBAR | TALOS_GUI_WINDOW_NO_FOCUS_ON_APPEARING;
+
+    if (talos_gui_begin("ProcessCardWrapper", nullptr, proc_card_flags))
+    {
+        talos_gui_text("Active Process Table");
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        f32 available_table_space = half_height_cpu - 65.0f;
+
+        if (talos_gui_begin_child("ProcScrollRegion", 0.0f, available_table_space, 0))
+        {
+            i32 table_flags = TALOS_TABLE_FLAG_BORDERS_INNER_V | TALOS_TABLE_FLAG_ROW_BG |
+                              TALOS_TABLE_FLAG_SCROLL_Y | TALOS_TABLE_FLAG_RESIZABLE |
+                              TALOS_TABLE_FLAG_SORTABLE;
+
+            if (talos_gui_begin_table("proctable", 5, table_flags, 0.0f))
+            {
+                talos_gui_table_setup_scroll_freeze(0, 1);
+                talos_gui_table_setup_column("PID", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 50.0f);
+                talos_gui_table_setup_column("Name", TALOS_TABLE_COLUMN_FLAG_WIDTH_STRETCH, 0.0f);
+                talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 60.0f);
+                talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 70.0f);
+                talos_gui_table_setup_column("State", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 45.0f);
+
+                talos_gui_table_headers_row();
+
+                i32 sort_col = talos_gui_table_get_sort_column();
+                if (sort_col != -1)
+                {
+                    state->proc_list.sort_dirty = true;
+                    switch (sort_col)
+                    {
+                        case 0: state->proc_list.sort = TALOS_SORT_PID; break;
+                        case 2: state->proc_list.sort = TALOS_SORT_CPU; break;
+                        case 3: state->proc_list.sort = TALOS_SORT_MEM; break;
+                    }
+                }
+
+                for (u32 i = 0; i < state->proc_list.count; i++)
+                {
+                    talos_process *p      = &state->proc_list.procs[i];
+                    f32            mem_mb = (f32) p->mem_rss_kb / 1024.0f;
+
+                    talos_gui_push_id_int(p->pid);
+
+                    talos_gui_table_next_row();
+
+                    char buf[32];
+
+                    talos_gui_table_set_column_index(0);
+                    snprintf(buf, sizeof(buf), "%d", p->pid);
+                    talos_gui_text(buf);
+
+                    talos_gui_table_set_column_index(1);
+                    talos_gui_text(p->name);
+
+                    talos_gui_table_set_column_index(2);
+                    snprintf(buf, sizeof(buf), "%.1f%%", p->cpu_usage);
+                    talos_gui_text(buf);
+
+                    talos_gui_table_set_column_index(3);
+                    snprintf(buf, sizeof(buf), "%.1fMB", mem_mb);
+                    talos_gui_text(buf);
+
+                    talos_gui_table_set_column_index(4);
+                    snprintf(buf, sizeof(buf), "%c", p->state);
+                    talos_gui_text(buf);
+
+                    talos_gui_pop_id();
+                }
+
+                talos_gui_end_table();
+            }
+        }
+        talos_gui_end_child();
+    }
+    talos_gui_end();
+
+    // Storage and thermals
+
+    f32 right_column_x = left_margin + card_width + padding;
+    f32 half_height    = ((f32) height - 80.0f - padding) * 0.5f;
+
+    // Top right card
+    talos_gui_set_next_window_pos(right_column_x, 60.0f);
+    talos_gui_set_next_window_size(card_width, half_height);
+
+    if (talos_gui_begin("MemoryCardWrapper", nullptr, card_flags))
+    {
+        talos_gui_text("Memory Allocation State");
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        f32 total_gb = (f32) state->mem.total_kb / 1024.0f / 1024.0f;
+        f32 used_gb  = (f32) state->mem.used_kb / 1024.0f / 1024.0f;
+        f32 avail_gb = (f32) state->mem.available_kb / 1024.0f / 1024.0f;
+        f32 cache_gb = (f32) state->mem.cached_kb / 1024.0f / 1024.0f;
+
+        f32 mem_fraction = 0.0f;
+        if (state->mem.total_kb > 0)
+        {
+            mem_fraction = (f32) state->mem.used_kb / (f32) state->mem.total_kb;
+        }
+
+        char ram_text[128];
+        snprintf(ram_text, sizeof(ram_text), "RAM Usage: %.2f GiB / %.2f GiB", used_gb, total_gb);
+        talos_gui_text(ram_text);
+        talos_gui_progress_bar(mem_fraction, "");
+
+        talos_gui_spacing();
+
+        snprintf(ram_text, sizeof(ram_text), "Available: %.2f GiB", avail_gb);
+        talos_gui_text(ram_text);
+
+        snprintf(ram_text, sizeof(ram_text), "Kernel Cache: %.2f GiB", cache_gb);
+        talos_gui_text(ram_text);
+
+        // Render Swap Space if swap allocations are running active on disk
+        if (state->mem.swap_total_kb > 0)
+        {
+            talos_gui_separator();
+            talos_gui_spacing();
+
+            f32 swap_total    = (f32) state->mem.swap_total_kb / 1024.0f / 1024.0f;
+            f32 swap_used     = (f32) state->mem.swap_used_kb / 1024.0f / 1024.0f;
+            f32 swap_fraction = swap_used / swap_total;
+
+            snprintf(ram_text,
+                     sizeof(ram_text),
+                     "Swap Space: %.2f GiB / %.2f GiB",
+                     swap_used,
+                     swap_total);
+            talos_gui_text(ram_text);
+            talos_gui_progress_bar(swap_fraction, "");
+        }
+    }
+    talos_gui_end();
+
+    // Bottom right card
+    talos_gui_set_next_window_pos(right_column_x, 60.0f + half_height_cpu + padding);
+    talos_gui_set_next_window_size(card_width, half_height_cpu);
+
+    if (talos_gui_begin("ThermalCardWrapper", nullptr, card_flags))
+    {
+        talos_gui_text("Thermal Sensor FieldS");
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        if (state->temps.count == 0)
+        {
+            talos_gui_text("No hardware monitors reporting data.");
+        }
+        else
+        {
+            for (u32 i = 0; i < state->temps.count; ++i)
+            {
+                talos_temp_sensor *sensor = &state->temps.sensors[i];
+
+                char thermal_label[128];
+                snprintf(
+                    thermal_label, sizeof(thermal_label), "[%s] %s", sensor->source, sensor->label);
+                talos_gui_text(thermal_label);
+
+                talos_gui_same_line();
+
+                char temp_val[32];
+                snprintf(temp_val, sizeof(temp_val), "%.1f C", sensor->temp_c);
+                talos_gui_text(temp_val);
+
+                if (sensor->temp_crit > 0.0f)
+                {
+                    f32 thermal_fraction = sensor->temp_c / sensor->temp_crit;
+                    if (thermal_fraction > 1.0f)
+                        thermal_fraction = 1.0f;
+                    if (thermal_fraction < 0.0f)
+                        thermal_fraction = 0.0f;
+
+                    talos_gui_progress_bar(thermal_fraction, "");
+                }
+                else
+                {
+                    f32 fallback_fraction = sensor->temp_c / 100.0f;
+                    if (fallback_fraction > 1.0f)
+                        fallback_fraction = 1.0f;
+                    talos_gui_progress_bar(fallback_fraction, "");
+                }
+            }
+        }
+    }
+    talos_gui_end();
+    talos_gui_pop_font();
+
+    // Close the master display window frame container context
+    talos_gui_end();
+}

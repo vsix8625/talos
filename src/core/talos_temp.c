@@ -34,7 +34,8 @@ static void resolve_label(talos_temp_sensor *s)
         }
     }
     // fallback to driver name
-    snprintf(s->label, sizeof(s->label), "%s", s->source);
+    strncpy(s->label, s->source, sizeof(s->label) - 1);
+    s->label[sizeof(s->label) - 1] = '\0';
 }
 
 static f32 read_temp_file(const char *path)

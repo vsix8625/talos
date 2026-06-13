@@ -155,6 +155,16 @@ void talos_cpu_update(talos_cpu *cpu)
     {
         cpu->usage[i] = cpu_calc_usage(&cpu->prev[i], &cpu->curr[i]);
     }
+
+    u64 prev_total = cpu->prev[0].user + cpu->prev[0].nice + cpu->prev[0].system +
+                     cpu->prev[0].idle + cpu->prev[0].iowait + cpu->prev[0].irq +
+                     cpu->prev[0].softirq + cpu->prev[0].steal;
+
+    u64 curr_total = cpu->curr[0].user + cpu->curr[0].nice + cpu->curr[0].system +
+                     cpu->curr[0].idle + cpu->curr[0].iowait + cpu->curr[0].irq +
+                     cpu->curr[0].softirq + cpu->curr[0].steal;
+
+    cpu->total_ticks_delta = curr_total - prev_total;
 }
 
 void talos_cpu_destroy(talos_cpu *cpu)

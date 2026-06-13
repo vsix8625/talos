@@ -1,4 +1,3 @@
-// talos_update.c
 #include "talos_update.h"
 #include "vx_io.h"
 #include <time.h>
@@ -11,10 +10,12 @@ static void *update_loop(void *arg)
 
     while (atomic_load(&state->running))
     {
-        nanosleep(&ts, NULL);
         talos_cpu_update(&state->cpu);
         talos_mem_read(&state->mem);
         talos_temps_update(&state->temps);
+        talos_proc_update(&state->proc_list, state->cpu.total_ticks_delta);
+
+        nanosleep(&ts, NULL);
     }
 
     return nullptr;

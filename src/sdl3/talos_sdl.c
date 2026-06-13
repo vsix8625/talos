@@ -8,7 +8,7 @@
 
 vx_status talos_sdl_init(struct talos_ctx *ctx)
 {
-    if (!SDL_Init(SDL_INIT_VIDEO) || ctx == nullptr)
+    if (ctx == nullptr)
     {
         return VX_ERROR;
     }
@@ -26,6 +26,12 @@ vx_status talos_sdl_init(struct talos_ctx *ctx)
     {
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "x11");
         vx_log("Falling back to SDL_HINT_VIDEO_DRIVER=x11");
+    }
+
+    if (!SDL_Init(SDL_INIT_VIDEO))
+    {
+        VX_ASSERT_LOG("failed to initialize SDL:  %s", SDL_GetError());
+        return VX_ERROR;
     }
 
     i32 w = 800;
@@ -71,4 +77,6 @@ void talos_sdl_shutdown(struct talos_ctx *ctx)
         SDL_DestroyWindow(ctx->window);
     }
     SDL_Quit();
+
+    ctx->state |= TALOS_RUNTIME_STATE_OFF;
 }

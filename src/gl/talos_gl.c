@@ -74,7 +74,11 @@ void talos_gl_begin(struct talos_ctx *ctx, SDL_Color color)
         return;
     }
 
-    glClearColor(color.r, color.g, color.b, color.a);
+    glClearColor((f32) color.r / 255.0f,
+                 (f32) color.g / 255.0f,
+                 (f32) color.b / 255.0f,
+                 (f32) color.a / 255.0f);
+
     glViewport(0, 0, ctx->width, ctx->height);
 
     glEnable(GL_DEPTH_TEST);

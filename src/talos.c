@@ -1,11 +1,7 @@
-#include "gui/talos_gui.hpp"
+#include "gui/talos_gui.h"
 #include "runtime/talos_runtime.h"
 #include "talos_cpu.h"
 #include "talos_sdl.h"
-#include "talos_mem.h"
-#include "talos_state.h"
-#include "talos_update.h"
-#include "talos_temp.h"
 #include "vx.h"
 #include "mem.h"
 #include "globals.h"
@@ -26,6 +22,12 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
+#if defined(DEBUG)
+    vx_set_debug(true);
+#endif
+
+    vx_io_set_prefix(VX_LOG_LEVEL_INFO, "[talos]: ", VX_COLOR_GREEN);
+
     if (!mem_init())
     {
         result = VX_EXIT_FAILURE;
@@ -44,11 +46,17 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
+    if (!talos_gui_init(g_talos_ctx.window, g_talos_ctx.gl_context))
+    {
+        result = VX_EXIT_FAILURE;
+    }
+
     return result;
 }
 
 static void talos_quit(void)
 {
+    talos_gui_shutdown();
     talos_sdl_shutdown(&g_talos_ctx);
 
     mem_arena_destroy(g_talos_global_arena);
@@ -65,28 +73,7 @@ i32 main(int argc, char **argv)
 
     if (result != VX_EXIT_FAILURE)
     {
-        talos_state state = {0};
-
-        talos_cpu_init(&state.cpu);
-        talos_temps_init(&state.temps);
-        talos_update_start(&state);
-
-        // render loop will go here
-
         talos_runtime(&g_talos_ctx);
-
-        struct timespec ts = {.tv_sec = 1, .tv_nsec = 0};
-        for (i32 i = 0; i < 20; i++)
-        {
-            nanosleep(&ts, NULL);
-            vx_printf("\033[2J\033[H");
-            vx_log("Aggregate: %.1f%%", state.cpu.usage[0]);
-            vx_log("RAM: %" PRIu64 " MB used", state.mem.used_kb / 1024);
-            vx_log("CPU temp: %.1f°C", state.temps.sensors[1].temp_c);
-        }
-
-        talos_update_stop(&state);
-        talos_cpu_destroy(&state.cpu);
     }
 
     talos_quit();

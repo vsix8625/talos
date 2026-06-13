@@ -2,16 +2,28 @@
 cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
+major: 0
+minor: 2
+patch: 2
 
-build_type: debug
+codegen src/core/config.h
+{
+    literal: "#pragma once"
+
+    define: TALOS_VERSION_MAJOR major
+    define: TALOS_VERSION_MINOR minor
+    define: TALOS_VERSION_PATCH patch
+    define: TALOS_VERSION_STRING "major.minor.patch"
+}
 
 target imgui
 {
     out: imgui
     kind: static
     cc: /usr/bin/clang++
+    mode: release
 
-    cflags: -std=c++17 -O2 -fno-exceptions -fno-rtti -fno-threadsafe-statics -ffast-math -march=native
+    cflags: -std=c++17 -O3 -fno-exceptions -fno-rtti -fno-threadsafe-statics -ffast-math -march=native
     defines:: -DIMGUI_IMPL_OPENGL_LOADER_GLAD
 
     sources:
@@ -28,12 +40,30 @@ target gui
     out: gui
     kind: static
     cc: /usr/bin/g++
-
-    cflags: -std=c++23 -Wall -Werror -Wextra -g
     depends: imgui
+    cflags: -std=c++23 -Wall -Werror -Wextra
+
+    if(talos_debug)
+    {
+        mode: debug
+        cflags::
+            -g
+        defines::
+            -DDEBUG
+    }
+    else
+    {
+        mode: release
+        cflags::
+            -O3
+            -march=native
+            -mbmi
+        defines::
+            -DNDEBUG
+    }
+
 
     defines::
-        -DDEBUG
         -DIMGUI_IMPL_OPENGL_LOADER_GLAD
 
     sources:
@@ -58,13 +88,19 @@ target talos
         -lm
         -pthread
 
-    if(build_type == debug){
+    if(talos_debug)
+    {
+        mode: debug
         cflags::  -g
         defines:: -DDEBUG
     }
     else
     {
-        cflags::  -O2
+        mode: release
+        cflags::
+            -O3
+            -march=native
+            -mbmi
         defines:: -DNDEBUG
     }
 
