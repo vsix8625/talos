@@ -107,8 +107,8 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx)
 
     if (resolved_path)
     {
-        g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 14.0f);
-        g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 20.0f);
+        g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 18.0f);
+        g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 26.0f);
 
         vx_dbglog("Loaded font from: %s", resolved_path);
     }
@@ -240,13 +240,17 @@ TALOS_API void talos_gui_end_child(void)
 TALOS_API void talos_gui_push_font_large(void)
 {
     if (g_imgui_font_large)
+    {
         PushFont(g_imgui_font_large);
+    }
 }
 
 TALOS_API void talos_gui_push_font_small(void)
 {
     if (g_imgui_font_small)
+    {
         PushFont(g_imgui_font_small);
+    }
 }
 
 TALOS_API void talos_gui_pop_font(void)
@@ -306,18 +310,6 @@ TALOS_API void talos_gui_table_headers_row(void)
     TableHeadersRow();
 }
 
-TALOS_API int talos_gui_table_get_sort_column(void)
-{
-    ImGuiTableSortSpecs *specs = TableGetSortSpecs();
-    if (specs && specs->SpecsDirty && specs->SpecsCount > 0)
-    {
-        // Mark specs as clean so we only trigger the sort pass once per click
-        specs->SpecsDirty = false;
-        return specs->Specs[0].ColumnIndex;
-    }
-    return -1;
-}
-
 TALOS_API int talos_gui_event_process(void *event)
 {
     return ImGui_ImplSDL3_ProcessEvent(static_cast<SDL_Event *>(event));
@@ -341,4 +333,79 @@ TALOS_API void talos_gui_push_id_int(int int_id)
 TALOS_API void talos_gui_pop_id(void)
 {
     PopID();
+}
+
+// --- Selectables & Interaction ---
+
+TALOS_API bool talos_gui_selectable(const char *label, bool selected, int flags)
+{
+    // Using SpanAllColumns lets the click target cover the whole row
+    return Selectable(label, selected, flags);
+}
+
+TALOS_API bool talos_gui_is_item_clicked(int mouse_button)
+{
+    return IsItemClicked(mouse_button);
+}
+
+// --- Popup & Modal Management ---
+
+TALOS_API void talos_gui_open_popup(const char *str_id, int popup_flags)
+{
+    OpenPopup(str_id, popup_flags);
+}
+
+TALOS_API bool talos_gui_begin_popup_modal(const char *name, bool *p_open, int flags)
+{
+    return BeginPopupModal(name, p_open, flags);
+}
+
+TALOS_API void talos_gui_end_popup(void)
+{
+    EndPopup();
+}
+
+TALOS_API void talos_gui_close_current_popup(void)
+{
+    CloseCurrentPopup();
+}
+
+TALOS_API bool talos_gui_table_get_sort_specs_dirty(void)
+{
+    ImGuiTableSortSpecs *specs = TableGetSortSpecs();
+    return (specs != nullptr) ? specs->SpecsDirty : false;
+}
+
+TALOS_API void talos_gui_table_clear_sort_specs_dirty(void)
+{
+    ImGuiTableSortSpecs *specs = TableGetSortSpecs();
+    if (specs)
+    {
+        specs->SpecsDirty = false;
+    }
+}
+
+TALOS_API int talos_gui_table_get_sort_column(void)
+{
+    ImGuiTableSortSpecs *specs = TableGetSortSpecs();
+    if (specs && specs->SpecsCount > 0)
+    {
+        return (int) specs->Specs[0].ColumnIndex;
+    }
+    return -1;
+}
+
+TALOS_API int talos_gui_table_get_sort_direction(void)
+{
+    ImGuiTableSortSpecs *specs = TableGetSortSpecs();
+    if (specs && specs->SpecsCount > 0)
+    {
+        switch (specs->Specs[0].SortDirection)
+        {
+            case ImGuiSortDirection_Ascending: return TALOS_GUI_SORT_DIRECTION_ASCENDING;
+            case ImGuiSortDirection_Descending: return TALOS_GUI_SORT_DIRECTION_DESCENDING;
+            default: return TALOS_GUI_SORT_DIRECTION_NONE;
+        }
+    }
+    return TALOS_GUI_SORT_DIRECTION_NONE;
 }

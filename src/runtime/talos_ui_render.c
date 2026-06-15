@@ -2,13 +2,22 @@
 
 #include "talos_state.h"
 #include <inttypes.h>
+#include <signal.h>
 
-void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
+void talos_ui_render_dashboard(talos_state     *state,
+                               talos_proc_list *proc_list,
+                               u32              width,
+                               u32              height)
 {
     if (state == nullptr)
     {
         return;
     }
+
+    static i32  selected_pid    = -1;
+    static bool show_kill_popup = false;
+
+    static char selected_proc_name[VX_BUF_SIZE_256] = {0};
 
     talos_gui_set_next_window_pos(0.0f, 0.0f);
     talos_gui_set_next_window_size((f32) width, (f32) height);
@@ -44,11 +53,11 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
     i32 card_flags = (i32) (TALOS_GUI_WINDOW_NO_TITLE_BAR | TALOS_GUI_WINDOW_NO_RESIZE |
                             TALOS_GUI_WINDOW_NO_MOVE);
 
-    f32 left_column_x   = left_margin;
-    f32 half_height_cpu = ((f32) height - 80.0f - padding) * 0.5f;
+    f32 left_column_x = left_margin;
+    f32 half_height   = ((f32) height - 80.0f - padding) * 0.5f;
 
     talos_gui_set_next_window_pos(left_column_x, 60.0f);
-    talos_gui_set_next_window_size(card_width, (f32) half_height_cpu);
+    talos_gui_set_next_window_size(card_width, (f32) half_height);
 
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
@@ -84,8 +93,8 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
 
     // Process card — bottom left
 
-    talos_gui_set_next_window_pos(left_column_x, 60.0f + half_height_cpu + padding);
-    talos_gui_set_next_window_size(card_width, half_height_cpu);
+    talos_gui_set_next_window_pos(left_column_x, 60.0f + half_height + padding);
+    talos_gui_set_next_window_size(card_width, half_height);
 
     i32 proc_card_flags =
         card_flags | TALOS_GUI_WINDOW_NO_SCROLLBAR | TALOS_GUI_WINDOW_NO_FOCUS_ON_APPEARING;
@@ -96,7 +105,7 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
         talos_gui_separator();
         talos_gui_spacing();
 
-        f32 available_table_space = half_height_cpu - 65.0f;
+        f32 available_table_space = half_height - 65.0f;
 
         if (talos_gui_begin_child("ProcScrollRegion", 0.0f, available_table_space, 0))
         {
@@ -107,7 +116,11 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
             if (talos_gui_begin_table("proctable", 5, table_flags, 0.0f))
             {
                 talos_gui_table_setup_scroll_freeze(0, 1);
-                talos_gui_table_setup_column("PID", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 50.0f);
+
+                u32 pid_col_flags =
+                    TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED | TALOS_TABLE_COLUMN_FLAG_DEFAULT_SORT;
+
+                talos_gui_table_setup_column("PID", pid_col_flags, 50.0f);
                 talos_gui_table_setup_column("Name", TALOS_TABLE_COLUMN_FLAG_WIDTH_STRETCH, 0.0f);
                 talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 60.0f);
                 talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 70.0f);
@@ -115,32 +128,62 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
 
                 talos_gui_table_headers_row();
 
-                i32 sort_col = talos_gui_table_get_sort_column();
-                if (sort_col != -1)
+                if (talos_gui_table_get_sort_specs_dirty())
                 {
-                    state->proc_list.sort_dirty = true;
-                    switch (sort_col)
+                    i32 sort_col = talos_gui_table_get_sort_column();
+                    i32 sort_dir = talos_gui_table_get_sort_direction();
+
+                    proc_list->sort_dirty = true;
+
+                    if (sort_col == -1)
                     {
-                        case 0: state->proc_list.sort = TALOS_SORT_PID; break;
-                        case 2: state->proc_list.sort = TALOS_SORT_CPU; break;
-                        case 3: state->proc_list.sort = TALOS_SORT_MEM; break;
+                        proc_list->sort           = TALOS_SORT_PID;
+                        proc_list->sort_direction = TALOS_SORT_DIR_ASCENDING;
                     }
+                    else
+                    {
+                        talos_sort_mode new_sort = TALOS_SORT_PID;
+
+                        switch (sort_col)
+                        {
+                            case 0: new_sort = TALOS_SORT_PID; break;
+                            case 2: new_sort = TALOS_SORT_CPU; break;
+                            case 3: new_sort = TALOS_SORT_MEM; break;
+                        }
+
+                        proc_list->sort = new_sort;
+                        proc_list->sort_direction =
+                            (sort_dir == TALOS_GUI_SORT_DIRECTION_DESCENDING)
+                                ? TALOS_SORT_DIR_ASCENDING
+                                : TALOS_SORT_DIR_DESCENDING;
+                    }
+
+                    talos_gui_table_clear_sort_specs_dirty();
                 }
 
-                for (u32 i = 0; i < state->proc_list.count; i++)
+                for (u32 i = 0; i < proc_list->count; i++)
                 {
-                    talos_process *p      = &state->proc_list.procs[i];
+                    talos_process *p      = &proc_list->procs[i];
                     f32            mem_mb = (f32) p->mem_rss_kb / 1024.0f;
 
                     talos_gui_push_id_int(p->pid);
 
                     talos_gui_table_next_row();
 
-                    char buf[32];
+                    char buf[VX_BUF_SIZE_32];
 
                     talos_gui_table_set_column_index(0);
                     snprintf(buf, sizeof(buf), "%d", p->pid);
-                    talos_gui_text(buf);
+
+                    bool is_selected = (selected_pid == p->pid);
+
+                    if (talos_gui_selectable(buf, is_selected, 1 << 1))  // span all columns
+                    {
+                        selected_pid = p->pid;
+                        snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", p->name);
+
+                        show_kill_popup = true;
+                    }
 
                     talos_gui_table_set_column_index(1);
                     talos_gui_text(p->name);
@@ -170,7 +213,6 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
     // Storage and thermals
 
     f32 right_column_x = left_margin + card_width + padding;
-    f32 half_height    = ((f32) height - 80.0f - padding) * 0.5f;
 
     // Top right card
     talos_gui_set_next_window_pos(right_column_x, 60.0f);
@@ -228,8 +270,8 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
     talos_gui_end();
 
     // Bottom right card
-    talos_gui_set_next_window_pos(right_column_x, 60.0f + half_height_cpu + padding);
-    talos_gui_set_next_window_size(card_width, half_height_cpu);
+    talos_gui_set_next_window_pos(right_column_x, 60.0f + half_height + padding);
+    talos_gui_set_next_window_size(card_width, half_height);
 
     if (talos_gui_begin("ThermalCardWrapper", nullptr, card_flags))
     {
@@ -262,17 +304,25 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
                 {
                     f32 thermal_fraction = sensor->temp_c / sensor->temp_crit;
                     if (thermal_fraction > 1.0f)
+                    {
                         thermal_fraction = 1.0f;
+                    }
+
                     if (thermal_fraction < 0.0f)
+                    {
                         thermal_fraction = 0.0f;
+                    }
 
                     talos_gui_progress_bar(thermal_fraction, "");
                 }
                 else
                 {
                     f32 fallback_fraction = sensor->temp_c / 100.0f;
+
                     if (fallback_fraction > 1.0f)
+                    {
                         fallback_fraction = 1.0f;
+                    }
                     talos_gui_progress_bar(fallback_fraction, "");
                 }
             }
@@ -283,4 +333,51 @@ void talos_ui_render_dashboard(talos_state *state, u32 width, u32 height)
 
     // Close the master display window frame container context
     talos_gui_end();
+
+    i32 popup_flags = TALOS_GUI_WINDOW_ALWAYS_AUTO_RESIZE;
+
+    if (show_kill_popup)
+    {
+        talos_gui_open_popup("Kill Process?", 0);
+        show_kill_popup = false;
+    }
+
+    if (talos_gui_begin_popup_modal("Kill Process?", nullptr, popup_flags))
+    {
+        char prompt[VX_BUF_SIZE_512];
+        snprintf(prompt,
+                 sizeof(prompt),
+                 "Are you sure you want to terminate %s (PID: %d)?",
+                 selected_proc_name,
+                 selected_pid);
+
+        talos_gui_text(prompt);
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        if (talos_gui_button("Close"))
+        {
+            kill(selected_pid, 15);
+
+            talos_gui_close_current_popup();
+        }
+
+        talos_gui_same_line();
+
+        if (talos_gui_button("Force"))
+        {
+            kill(selected_pid, 9);
+
+            talos_gui_close_current_popup();
+        }
+
+        talos_gui_same_line();
+
+        if (talos_gui_button("Cancel"))
+        {
+            talos_gui_close_current_popup();
+        }
+
+        talos_gui_end_popup();
+    }
 }

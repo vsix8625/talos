@@ -14,5 +14,5 @@ typedef struct
     talos_temps      temps;
     atomic_bool      running;
     struct vx_thread thread;
-    talos_proc_list  proc_list;
+    talos_proc_state proc_state;
 } talos_state;

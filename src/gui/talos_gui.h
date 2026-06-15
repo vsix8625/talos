@@ -32,6 +32,13 @@ typedef enum
 
 typedef enum
 {
+    TALOS_GUI_SORT_DIRECTION_NONE       = 0,
+    TALOS_GUI_SORT_DIRECTION_ASCENDING  = 1,
+    TALOS_GUI_SORT_DIRECTION_DESCENDING = 2,
+} talos_gui_sort_direction;
+
+typedef enum
+{
     TALOS_TABLE_FLAG_NONE                 = 0,
     TALOS_TABLE_FLAG_RESIZABLE            = 1 << 0,
     TALOS_TABLE_FLAG_REORDERABLE          = 1 << 1,
@@ -83,6 +90,7 @@ typedef enum
 typedef enum
 {
     TALOS_TABLE_COLUMN_FLAG_NONE          = 0,
+    TALOS_TABLE_COLUMN_FLAG_DEFAULT_SORT  = 1 << 2,
     TALOS_TABLE_COLUMN_FLAG_WIDTH_STRETCH = 1 << 3,
     TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED   = 1 << 4,
     TALOS_TABLE_COLUMN_FLAG_NO_SORT       = 1 << 9,
@@ -144,8 +152,9 @@ TALOS_API
     void talos_gui_table_setup_scroll_freeze(int cols, int rows);
     void talos_gui_table_headers_row(void);
 
-    // Returns the column index that needs sorting, or -1 if no sort is requested
-    int talos_gui_table_get_sort_column(void);
+    bool talos_gui_table_get_sort_specs_dirty(void);
+    void talos_gui_table_clear_sort_specs_dirty(void);
+    int  talos_gui_table_get_sort_column(void);
 
     int talos_gui_event_process(void *event);
 
@@ -154,6 +163,22 @@ TALOS_API
 
     void talos_gui_push_id_int(int int_id);
     void talos_gui_pop_id(void);
+
+    float talos_gui_get_scroll_y(void);
+    void  talos_gui_set_scroll_y(float y);
+    void  talos_gui_push_id_int(int int_id);
+    void  talos_gui_pop_id(void);
+
+    bool talos_gui_selectable(const char *label, bool selected, int flags);
+    bool talos_gui_is_item_clicked(int mouse_button);
+
+    void talos_gui_open_popup(const char *str_id, int popup_flags);
+    bool talos_gui_begin_popup_modal(const char *name, bool *p_open, int flags);
+    void talos_gui_end_popup(void);
+    void talos_gui_close_current_popup(void);
+
+    int talos_gui_table_get_sort_column(void);
+    int talos_gui_table_get_sort_direction(void);
 
 #ifdef __cplusplus
 }

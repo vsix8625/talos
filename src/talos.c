@@ -1,4 +1,5 @@
 #include "gui/talos_gui.h"
+#include "mem_arena.h"
 #include "runtime/talos_runtime.h"
 #include "talos_cpu.h"
 #include "talos_sdl.h"
@@ -33,7 +34,7 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
-    g_talos_global_arena = mem_arena_create("global-arena", VX_MiB(4));
+    g_talos_global_arena = mem_arena_create("global-arena", VX_MiB(2));
 
     if (g_talos_global_arena == nullptr)
     {

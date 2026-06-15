@@ -6,16 +6,23 @@ static void *update_loop(void *arg)
 {
     talos_state *state = (talos_state *) arg;
 
-    struct timespec ts = {.tv_sec = 1, .tv_nsec = 0};
+    struct timespec tiny_ts = {.tv_sec = 0, .tv_nsec = 10 * 1'000'000};  // 10ms
+
+    const u32 update_interval_ms = 1000;
 
     while (atomic_load(&state->running))
     {
         talos_cpu_update(&state->cpu);
         talos_mem_read(&state->mem);
         talos_temps_update(&state->temps);
-        talos_proc_update(&state->proc_list, state->cpu.total_ticks_delta);
+        talos_proc_update(&state->proc_state, state->cpu.total_ticks_delta);
 
-        nanosleep(&ts, NULL);
+        u32 total_sleep_ms = 0;
+        while (total_sleep_ms < update_interval_ms && atomic_load(&state->running))
+        {
+            nanosleep(&tiny_ts, NULL);
+            total_sleep_ms += 10;
+        }
     }
 
     return nullptr;
@@ -30,6 +37,9 @@ bool talos_update_start(talos_state *state)
 
     atomic_store(&state->running, true);
 
+    state->proc_state.active_idx       = 0;
+    state->proc_state.buffers[0].count = 0;
+    state->proc_state.buffers[1].count = 0;
     if (vx_thread_create(&state->thread, update_loop, state) != VX_OK)
     {
         vx_errlog("%s: failed to create update thread", __func__);

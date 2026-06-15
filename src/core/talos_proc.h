@@ -22,15 +22,28 @@ typedef enum
     TALOS_SORT_PID,
 } talos_sort_mode;
 
+typedef enum
+{
+    TALOS_SORT_DIR_DESCENDING = 0,
+    TALOS_SORT_DIR_ASCENDING  = 1
+} talos_sort_direction;
+
 typedef struct
 {
-    talos_process   procs[TALOS_PROC_MAX];
-    talos_process   prev[TALOS_PROC_MAX];
-    u32             count;
-    talos_sort_mode sort;
-    bool            sort_dirty;
+    talos_process        procs[TALOS_PROC_MAX];
+    talos_process        prev[TALOS_PROC_MAX];
+    u32                  count;
+    talos_sort_mode      sort;
+    talos_sort_direction sort_direction;
+    bool                 sort_dirty;
 } talos_proc_list;
 
+typedef struct
+{
+    talos_proc_list buffers[2];
+    _Atomic u32     active_idx;
+} talos_proc_state;
+
 bool talos_proc_init(talos_proc_list *list);
-void talos_proc_update(talos_proc_list *list, u64 total_cpu_delta);
+void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta);
 void talos_proc_sort(talos_proc_list *list);

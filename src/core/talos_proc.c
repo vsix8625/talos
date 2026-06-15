@@ -1,5 +1,7 @@
 #include "talos_proc.h"
 #include "vx_io.h"
+#include "vx_time.h"
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
@@ -12,7 +14,9 @@ static bool is_pid_dir(const char *name)
     for (const char *p = name; *p; p++)
     {
         if (!isdigit((u8) *p))
+        {
             return false;
+        }
     }
     return name[0] != '\0';
 }
@@ -107,47 +111,62 @@ static bool read_proc_mem(i32 pid, u64 *rss_kb)
     return false;
 }
 
-static i32 cmp_cpu(const void *a, const void *b)
+static i32 cmp_cpu(const void *a, const void *b, void *ctx)
 {
-    const talos_process *pa = (const talos_process *) a;
-    const talos_process *pb = (const talos_process *) b;
+    const talos_process *pa  = (const talos_process *) a;
+    const talos_process *pb  = (const talos_process *) b;
+    talos_sort_direction dir = *(const talos_sort_direction *) ctx;
+
+    i32 result = 0;
 
     if (pb->cpu_usage > pa->cpu_usage)
     {
-        return 1;
+        result = 1;
     }
-
-    if (pb->cpu_usage < pa->cpu_usage)
+    else if (pb->cpu_usage < pa->cpu_usage)
     {
-        return -1;
+        result = -1;
+    }
+    else
+    {
+        result = pa->pid - pb->pid;
     }
 
-    return pa->pid - pb->pid;
+    return (dir == TALOS_SORT_DIR_ASCENDING) ? result : -result;
 }
 
-static i32 cmp_mem(const void *a, const void *b)
+static i32 cmp_mem(const void *a, const void *b, void *ctx)
 {
-    const talos_process *pa = (const talos_process *) a;
-    const talos_process *pb = (const talos_process *) b;
+    const talos_process *pa  = (const talos_process *) a;
+    const talos_process *pb  = (const talos_process *) b;
+    talos_sort_direction dir = *(const talos_sort_direction *) ctx;
 
+    i32 result = 0;
     if (pb->mem_rss_kb > pa->mem_rss_kb)
     {
-        return 1;
+        result = 1;
     }
-
-    if (pb->mem_rss_kb < pa->mem_rss_kb)
+    else if (pb->mem_rss_kb < pa->mem_rss_kb)
     {
-        return -1;
+        result = -1;
+    }
+    else
+    {
+        result = pa->pid - pb->pid;
     }
 
-    return 0;
+    return (dir == TALOS_SORT_DIR_ASCENDING) ? result : -result;
 }
 
-static i32 cmp_pid(const void *a, const void *b)
+static i32 cmp_pid(const void *a, const void *b, void *ctx)
 {
-    const talos_process *pa = (const talos_process *) a;
-    const talos_process *pb = (const talos_process *) b;
-    return pa->pid - pb->pid;
+    const talos_process *pa  = (const talos_process *) a;
+    const talos_process *pb  = (const talos_process *) b;
+    talos_sort_direction dir = *(const talos_sort_direction *) ctx;
+
+    i32 result = pa->pid - pb->pid;
+
+    return (dir == TALOS_SORT_DIR_ASCENDING) ? result : -result;
 }
 
 bool talos_proc_init(talos_proc_list *list)
@@ -163,17 +182,20 @@ bool talos_proc_init(talos_proc_list *list)
     return true;
 }
 
-void talos_proc_update(talos_proc_list *list, u64 total_cpu_delta)
+void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
 {
-    if (list == nullptr || total_cpu_delta == 0)
+    if (state == nullptr)
     {
         return;
     }
 
-    memcpy(list->prev, list->procs, sizeof(talos_process) * list->count);
-    u32 prev_count = list->count;
+    u32 front_idx = atomic_load_explicit(&state->active_idx, memory_order_relaxed);
+    u32 back_idx  = 1 - front_idx;
 
-    list->count = 0;
+    talos_proc_list *next_list = &state->buffers[back_idx];
+    talos_proc_list *prev_list = &state->buffers[front_idx];
+
+    next_list->count = 0;
 
     DIR *dir = opendir("/proc");
     if (dir == nullptr)
@@ -191,12 +213,12 @@ void talos_proc_update(talos_proc_list *list, u64 total_cpu_delta)
 
         i32 pid = atoi(entry->d_name);
 
-        if (list->count >= TALOS_PROC_MAX)
+        if (next_list->count >= TALOS_PROC_MAX)
         {
             break;
         }
 
-        talos_process *p = &list->procs[list->count];
+        talos_process *p = &next_list->procs[next_list->count];
 
         if (!read_proc_stat(pid, p))
         {
@@ -205,28 +227,39 @@ void talos_proc_update(talos_proc_list *list, u64 total_cpu_delta)
         read_proc_mem(pid, &p->mem_rss_kb);
 
         p->cpu_usage = 0.0f;
-        if (total_cpu_delta > 0)
+
+        for (u32 i = 0; i < prev_list->count; i++)
         {
-            for (u32 i = 0; i < prev_count; i++)
+            if (prev_list->procs[i].pid == pid)
             {
-                if (list->prev[i].pid == pid)
+                u64 current_ticks  = p->utime + p->stime;
+                u64 previous_ticks = prev_list->procs[i].utime + prev_list->procs[i].stime;
+
+                if (current_ticks >= previous_ticks && total_ticks_delta > 0)
                 {
-                    u64 proc_delta =
-                        (p->utime + p->stime) - (list->prev[i].utime + list->prev[i].stime);
+                    u64 proc_ticks_delta = current_ticks - previous_ticks;
 
-                    p->cpu_usage = (f32) proc_delta / (f32) total_cpu_delta * 100.0f;
+                    p->cpu_usage = ((f32) proc_ticks_delta / (f32) total_ticks_delta) * 100.0f;
 
-                    break;
+                    // SCALE TO PER-CORE MODE:
+                    // p->cpu_usage *= 4.0f;
                 }
+
+                break;
             }
         }
 
-        list->count++;
+        next_list->count++;
     }
     closedir(dir);
-    talos_proc_sort(list);
 
-    list->sort_dirty = false;
+    next_list->sort           = prev_list->sort;
+    next_list->sort_direction = prev_list->sort_direction;
+
+    talos_proc_sort(next_list);
+    next_list->sort_dirty = false;
+
+    atomic_store_explicit(&state->active_idx, back_idx, memory_order_release);
 }
 
 void talos_proc_sort(talos_proc_list *list)
@@ -236,10 +269,24 @@ void talos_proc_sort(talos_proc_list *list)
         return;
     }
 
+    talos_sort_direction dir = list->sort_direction;
+
     switch (list->sort)
     {
-        case TALOS_SORT_CPU: qsort(list->procs, list->count, sizeof(talos_process), cmp_cpu); break;
-        case TALOS_SORT_MEM: qsort(list->procs, list->count, sizeof(talos_process), cmp_mem); break;
-        case TALOS_SORT_PID: qsort(list->procs, list->count, sizeof(talos_process), cmp_pid); break;
+        case TALOS_SORT_CPU:
+        {
+            qsort_r(list->procs, list->count, sizeof(talos_process), cmp_cpu, &dir);
+            break;
+        }
+        case TALOS_SORT_MEM:
+        {
+            qsort_r(list->procs, list->count, sizeof(talos_process), cmp_mem, &dir);
+            break;
+        }
+        case TALOS_SORT_PID:
+        {
+            qsort_r(list->procs, list->count, sizeof(talos_process), cmp_pid, &dir);
+            break;
+        }
     }
 }

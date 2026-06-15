@@ -9,6 +9,7 @@
 #include "talos_input.h"
 #include "vx_time.h"
 #include <SDL3/SDL_events.h>
+#include <time.h>
 
 void talos_runtime(struct talos_ctx *ctx)
 {
@@ -28,7 +29,7 @@ void talos_runtime(struct talos_ctx *ctx)
     talos_temps_init(&cpu_state.temps);
     talos_update_start(&cpu_state);
 
-    SDL_Color bg_color = {.r = 54, .g = 47, .b = 40, .a = 255};
+    SDL_Color bronze_color = {.r = 54, .g = 47, .b = 40, .a = 255};
 
     ctx->last_time = vx_time_ms();
 
@@ -42,19 +43,36 @@ void talos_runtime(struct talos_ctx *ctx)
 
         // RENDER
 
-        talos_gl_begin(ctx, bg_color);
+        talos_gl_begin(ctx, bronze_color);
 
         // ImGui
 
         talos_gui_begin_frame();
 
-        talos_ui_render_dashboard(&cpu_state, ctx->width, ctx->height);
+        u32 ui_idx = atomic_load_explicit(&cpu_state.proc_state.active_idx, memory_order_acquire);
+        talos_proc_list *ui_list = &cpu_state.proc_state.buffers[ui_idx];
+
+        talos_ui_render_dashboard(&cpu_state, ui_list, ctx->width, ctx->height);
 
         talos_gui_render_frame();
 
         // End ImGui
 
         talos_gl_end(ctx);
+
+        //----------------------------------------------------------------------------------------------------
+
+        const f32 target_dt = 1.0f / 15.0f;
+        if (ctx->dt < target_dt)
+        {
+            f32 sleep_seconds = target_dt - ctx->dt;
+
+            struct timespec ui_ts;
+            ui_ts.tv_sec  = (time_t) sleep_seconds;
+            ui_ts.tv_nsec = (i64) ((sleep_seconds - (f32) ui_ts.tv_sec) * 1'000'000'000.0f);
+
+            nanosleep(&ui_ts, NULL);
+        }
     }
 
     talos_update_stop(&cpu_state);
