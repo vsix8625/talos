@@ -424,3 +424,8 @@ TALOS_API void talos_gui_set_cursor_pos_x(float local_x)
 {
     SetCursorPosX(local_x);
 }
+
+TALOS_API bool talos_gui_is_key_pressed(int talos_key)
+{
+    return IsKeyPressed((ImGuiKey) talos_key, false);
+}

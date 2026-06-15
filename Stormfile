@@ -56,8 +56,7 @@ target gui
         mode: release
         cflags::
             -O3
-            -march=native
-            -mbmi
+            -march=x86-64
         defines::
             -DNDEBUG
     }

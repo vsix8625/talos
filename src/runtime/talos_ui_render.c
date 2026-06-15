@@ -132,7 +132,56 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                 talos_gui_table_headers_row();
 
-                if (talos_gui_table_get_sort_specs_dirty())
+                bool hotkey_sort_triggered = false;
+
+                if (talos_gui_is_key_pressed(TALOS_KEY_1))  // Sort by PID
+                {
+                    proc_list->sort_direction =
+                        (proc_list->sort == TALOS_SORT_PID)
+                            ? (proc_list->sort_direction == TALOS_SORT_DIR_ASCENDING
+                                   ? TALOS_SORT_DIR_DESCENDING
+                                   : TALOS_SORT_DIR_ASCENDING)
+                            : TALOS_SORT_DIR_ASCENDING;
+
+                    proc_list->sort       = TALOS_SORT_PID;
+                    hotkey_sort_triggered = true;
+                }
+                else if (talos_gui_is_key_pressed(TALOS_KEY_2))  // Sort by CPU
+                {
+                    // Default to Descending for CPU since you want to see heavy processes first!
+                    proc_list->sort_direction =
+                        (proc_list->sort == TALOS_SORT_CPU)
+                            ? (proc_list->sort_direction == TALOS_SORT_DIR_DESCENDING
+                                   ? TALOS_SORT_DIR_ASCENDING
+                                   : TALOS_SORT_DIR_DESCENDING)
+                            : TALOS_SORT_DIR_DESCENDING;
+
+                    proc_list->sort       = TALOS_SORT_CPU;
+                    hotkey_sort_triggered = true;
+                }
+                else if (talos_gui_is_key_pressed(TALOS_KEY_3))  // Sort by MEM
+                {
+                    proc_list->sort_direction =
+                        (proc_list->sort == TALOS_SORT_MEM)
+                            ? (proc_list->sort_direction == TALOS_SORT_DIR_DESCENDING
+                                   ? TALOS_SORT_DIR_ASCENDING
+                                   : TALOS_SORT_DIR_DESCENDING)
+                            : TALOS_SORT_DIR_DESCENDING;
+
+                    proc_list->sort       = TALOS_SORT_MEM;
+                    hotkey_sort_triggered = true;
+                }
+
+                if (hotkey_sort_triggered)
+                {
+                    if (talos_gui_table_get_sort_specs_dirty())
+                    {
+                        talos_gui_table_clear_sort_specs_dirty();
+                    }
+                }
+
+                // mouse click sort
+                if (!hotkey_sort_triggered && talos_gui_table_get_sort_specs_dirty())
                 {
                     i32 sort_col = talos_gui_table_get_sort_column();
                     i32 sort_dir = talos_gui_table_get_sort_direction();
@@ -185,8 +234,6 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     {
                         selected_pid = p->pid;
                         snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", p->name);
-
-                        show_kill_popup = true;
                     }
 
                     talos_gui_table_set_column_index(1);
@@ -210,6 +257,12 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 talos_gui_end_table();
             }
         }
+
+        if (selected_pid != 0 && talos_gui_is_key_pressed(TALOS_KEY_D))
+        {
+            show_kill_popup = true;
+        }
+
         talos_gui_end_child();
     }
     talos_gui_end();
@@ -395,6 +448,17 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_text(prompt);
         talos_gui_separator();
         talos_gui_spacing();
+
+        if (talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+        {
+            talos_gui_close_current_popup();
+        }
+
+        if (talos_gui_is_key_pressed(TALOS_KEY_ENTER))
+        {
+            kill(selected_pid, 15);  // Default to clean terminate on Enter
+            talos_gui_close_current_popup();
+        }
 
         if (talos_gui_button("Close"))
         {

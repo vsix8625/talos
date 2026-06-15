@@ -96,6 +96,37 @@ typedef enum
     TALOS_TABLE_COLUMN_FLAG_NO_SORT       = 1 << 9,
 } talos_table_column_flags;
 
+typedef enum talos_imgui_key
+{
+    TALOS_KEY_NONE = 0,
+
+    TALOS_KEY_TAB         = 512,  // ImGuiKey_NamedKey_BEGIN
+    TALOS_KEY_LEFT_ARROW  = 513,
+    TALOS_KEY_RIGHT_ARROW = 514,
+    TALOS_KEY_UP_ARROW    = 515,
+    TALOS_KEY_DOWN_ARROW  = 516,
+    TALOS_KEY_ENTER       = 525,
+    TALOS_KEY_ESCAPE      = 526,
+    TALOS_KEY_0           = 536,
+    TALOS_KEY_1,
+    TALOS_KEY_2,
+    TALOS_KEY_3,
+    TALOS_KEY_4,
+    TALOS_KEY_5,
+    TALOS_KEY_6,
+    TALOS_KEY_7,
+    TALOS_KEY_8,
+    TALOS_KEY_9,
+    TALOS_KEY_A     = 546,
+    TALOS_KEY_C     = 548,
+    TALOS_KEY_D     = 549,
+    TALOS_KEY_F11   = 578,
+    TALOS_KEY_F12   = 579,
+    TALOS_MOD_CTRL  = 1 << 12,
+    TALOS_MOD_SHIFT = 1 << 13,
+    TALOS_MOD_ALT   = 1 << 14
+} talos_imgui_key;
+
 #define TALOS_GUI_STYLE_FRAME_PADDING 3
 
 #ifdef __cplusplus
@@ -184,6 +215,8 @@ TALOS_API
     void talos_gui_end_group(void);
 
     void talos_gui_set_cursor_pos_x(float local_x);
+
+    bool talos_gui_is_key_pressed(int talos_key);
 
 #ifdef __cplusplus
 }
