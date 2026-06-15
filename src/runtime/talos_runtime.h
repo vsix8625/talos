@@ -6,7 +6,8 @@ struct talos_ctx;
 
 void talos_runtime(struct talos_ctx *ctx);
 
-void talos_ui_render_dashboard(talos_state     *state,
-                               talos_proc_list *proc_list,
-                               u32              width,
-                               u32              height);
+void talos_ui_render_dashboard(struct talos_ctx *ctx,
+                               talos_state      *state,
+                               talos_proc_list  *proc_list,
+                               u32               width,
+                               u32               height);

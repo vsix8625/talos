@@ -107,8 +107,8 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx)
 
     if (resolved_path)
     {
-        g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 18.0f);
-        g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 26.0f);
+        g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 20.0f);
+        g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 28.0f);
 
         vx_dbglog("Loaded font from: %s", resolved_path);
     }
@@ -408,4 +408,19 @@ TALOS_API int talos_gui_table_get_sort_direction(void)
         }
     }
     return TALOS_GUI_SORT_DIRECTION_NONE;
+}
+
+TALOS_API void talos_gui_begin_group(void)
+{
+    BeginGroup();
+}
+
+TALOS_API void talos_gui_end_group(void)
+{
+    EndGroup();
+}
+
+TALOS_API void talos_gui_set_cursor_pos_x(float local_x)
+{
+    SetCursorPosX(local_x);
 }

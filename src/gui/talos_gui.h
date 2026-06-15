@@ -180,6 +180,11 @@ TALOS_API
     int talos_gui_table_get_sort_column(void);
     int talos_gui_table_get_sort_direction(void);
 
+    void talos_gui_begin_group(void);
+    void talos_gui_end_group(void);
+
+    void talos_gui_set_cursor_pos_x(float local_x);
+
 #ifdef __cplusplus
 }
 #endif

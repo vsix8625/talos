@@ -17,6 +17,10 @@ static void *update_loop(void *arg)
         talos_temps_update(&state->temps);
         talos_proc_update(&state->proc_state, state->cpu.total_ticks_delta);
 
+        // NOTE: hardcoded for now
+        talos_disk_read(&state->disk, "sda");
+        talos_net_read(&state->net, "enp1s0");
+
         u32 total_sleep_ms = 0;
         while (total_sleep_ms < update_interval_ms && atomic_load(&state->running))
         {

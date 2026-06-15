@@ -1,15 +1,17 @@
 #include "../gui/talos_gui.h"
 
+#include "globals.h"
 #include "talos_state.h"
 #include <inttypes.h>
 #include <signal.h>
 
-void talos_ui_render_dashboard(talos_state     *state,
-                               talos_proc_list *proc_list,
-                               u32              width,
-                               u32              height)
+void talos_ui_render_dashboard(struct talos_ctx *ctx,
+                               talos_state      *state,
+                               talos_proc_list  *proc_list,
+                               u32               width,
+                               u32               height)
 {
-    if (state == nullptr)
+    if (ctx == nullptr || state == nullptr)
     {
         return;
     }
@@ -59,6 +61,8 @@ void talos_ui_render_dashboard(talos_state     *state,
     talos_gui_set_next_window_pos(left_column_x, 60.0f);
     talos_gui_set_next_window_size(card_width, (f32) half_height);
 
+    // TODO: cluster core  usage 0-3 or 0-7 if cores > 32
+    // or NUMA nodes | CCX units
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
     {
@@ -266,6 +270,43 @@ void talos_ui_render_dashboard(talos_state     *state,
             talos_gui_text(ram_text);
             talos_gui_progress_bar(swap_fraction, "");
         }
+
+        // NOTE: placeholder disk I/O and Network
+
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        char io_net_buf[VX_BUF_SIZE_64];
+        f32  mid_point_x = card_width * 0.5f;
+
+        talos_gui_begin_group();
+        {
+            talos_gui_text("Disk Storage I/O");
+            talos_gui_spacing();
+
+            snprintf(io_net_buf, sizeof(io_net_buf), "Read:  %.2f MB/s", state->disk.read_mb_sec);
+            talos_gui_text(io_net_buf);
+
+            snprintf(io_net_buf, sizeof(io_net_buf), "Write: %.2f MB/s", state->disk.write_mb_sec);
+            talos_gui_text(io_net_buf);
+        }
+        talos_gui_end_group();
+
+        talos_gui_same_line();
+        talos_gui_set_cursor_pos_x(mid_point_x + 10.0f);
+
+        talos_gui_begin_group();
+        {
+            talos_gui_text("Network Traffic");
+            talos_gui_spacing();
+
+            snprintf(io_net_buf, sizeof(io_net_buf), "Down: %.1f KB/s", state->net.rx_kb_sec);
+            talos_gui_text(io_net_buf);
+
+            snprintf(io_net_buf, sizeof(io_net_buf), "Up:   %.1f KB/s", state->net.tx_kb_sec);
+            talos_gui_text(io_net_buf);
+        }
+        talos_gui_end_group();
     }
     talos_gui_end();
 

@@ -26,8 +26,5 @@ struct talos_ctx
 
     u32 width, height;
 
-    f32 dt;
-    u64 last_time;
-
     talos_rtime_state state;
 };
