@@ -442,3 +442,13 @@ TALOS_API bool talos_gui_is_key_pressed(int talos_key)
 {
     return IsKeyPressed((ImGuiKey) talos_key, false);
 }
+
+TALOS_API void talos_gui_push_style_color(talos_gui_color_idx idx, vx_vec4f color)
+{
+    PushStyleColor((ImGuiCol) idx, ImVec4(color.r, color.g, color.b, color.a));
+}
+
+TALOS_API void talos_gui_pop_style_color(int count)
+{
+    PopStyleColor(count);
+}

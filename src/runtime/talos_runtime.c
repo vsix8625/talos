@@ -31,7 +31,7 @@ void talos_runtime(struct talos_ctx *ctx)
 
     SDL_Color bronze_color = {.r = 54, .g = 47, .b = 40, .a = 255};
 
-    ctx->event_timeout_ms  = 1000;
+    ctx->event_timeout_ms  = 800;
     ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
 
     while (ctx->state & TALOS_RUNTIME_STATE_RUNNING)
@@ -39,12 +39,6 @@ void talos_runtime(struct talos_ctx *ctx)
         SDL_WaitEventTimeout(nullptr, ctx->event_timeout_ms);
 
         talos_input_poll(ctx);
-
-        // if window is not focused
-        if (!(ctx->state & TALOS_RUNTIME_STATE_FOCUSED))
-        {
-            continue;
-        }
 
         // RENDER
 

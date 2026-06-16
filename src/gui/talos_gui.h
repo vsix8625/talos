@@ -1,6 +1,8 @@
 #pragma once
 #include <stddef.h>
 
+#include "../../external/vx/include/vx_defs.h"
+
 typedef enum
 {
     TALOS_GUI_FLAG_NONE = 0,
@@ -95,6 +97,12 @@ typedef enum
     TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED   = 1 << 4,
     TALOS_TABLE_COLUMN_FLAG_NO_SORT       = 1 << 9,
 } talos_table_column_flags;
+
+typedef enum
+{
+    TALOS_GUI_COLOR_TEXT      = 0,
+    TALOS_GUI_COLOR_HISTOGRAM = 43,
+} talos_gui_color_idx;
 
 typedef enum talos_imgui_key
 {
@@ -217,6 +225,9 @@ TALOS_API
     void talos_gui_set_cursor_pos_x(float local_x);
 
     bool talos_gui_is_key_pressed(int talos_key);
+
+    void talos_gui_push_style_color(talos_gui_color_idx idx, vx_vec4f color);
+    void talos_gui_pop_style_color(int count);
 
 #ifdef __cplusplus
 }
