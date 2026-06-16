@@ -111,7 +111,7 @@ target talos
 
     // copies files to target bin dir
     deploy:
-        /usr/local/lib/libSDL3.so.0
+        external/SDL3/lib/libSDL3.so.0
         assets/fonts/JetBrainsMonoNerdFont-Medium.ttf
 
     if(__os__ == "linux")
@@ -137,6 +137,7 @@ target talos
         -Isrc/sdl3
         -Isrc/gl
         -Iexternal/include
+        -Iexternal/include/SDL3
         -Iexternal/vx/include
 
     install: ~/.local/bin
