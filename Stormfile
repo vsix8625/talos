@@ -23,7 +23,7 @@ target imgui
     cc: /usr/bin/clang++
     mode: release
 
-    cflags: -std=c++17 -O3 -fno-exceptions -fno-rtti -fno-threadsafe-statics -ffast-math -march=native
+    cflags: -std=c++17 -O3 -fno-exceptions -fno-rtti -fno-threadsafe-statics -ffast-math -march=x86-64
     defines:: -DIMGUI_IMPL_OPENGL_LOADER_GLAD
 
     sources:
@@ -59,6 +59,7 @@ target gui
             -march=x86-64
         defines::
             -DNDEBUG
+
     }
 
 
@@ -86,9 +87,11 @@ target talos
         -lSDL3
         -lm
         -pthread
+        -lfontconfig
 
     if(talos_debug)
     {
+        out: talos-debug
         mode: debug
         cflags::  -g
         defines:: -DDEBUG
@@ -98,10 +101,18 @@ target talos
         mode: release
         cflags::
             -O3
-            -march=native
+            -march=x86-64
             -mbmi
         defines:: -DNDEBUG
+
     }
+
+    rpath: $ORIGIN // sets -Wl,-rpath,$ORIGIN
+
+    // copies files to target bin dir
+    deploy:
+        /usr/local/lib/libSDL3.so.0
+        assets/fonts/JetBrainsMonoNerdFont-Medium.ttf
 
     if(__os__ == "linux")
     {

@@ -6,12 +6,43 @@
 extern "C"
 {
 #include "../../external/vx/include/vx.h"
+#include <fontconfig/fontconfig.h>
 }
 
 using namespace ImGui;
 
 static ImFont *g_imgui_font_small = nullptr;
 static ImFont *g_imgui_font_large = nullptr;
+
+const char *get_system_monospace_font(void)
+{
+    FcConfig  *config = FcInitLoadConfigAndFonts();
+    FcPattern *pat    = FcNameParse((const FcChar8 *) "monospace");
+    FcConfigSubstitute(config, pat, FcMatchPattern);
+    FcDefaultSubstitute(pat);
+
+    FcResult   result;
+    FcPattern *match = FcFontMatch(config, pat, &result);
+
+    static char font_path[VX_PATH_MAX];
+    font_path[0] = '\0';
+
+    if (match)
+    {
+        FcChar8 *file = NULL;
+        if (FcPatternGetString(match, FC_FILE, 0, &file) == FcResultMatch)
+        {
+            snprintf(font_path, sizeof(font_path), "%s", (char *) file);
+        }
+        FcPatternDestroy(match);
+    }
+
+    FcPatternDestroy(pat);
+    FcConfigDestroy(config);
+    FcFini();
+
+    return font_path[0] != '\0' ? font_path : NULL;
+}
 
 TALOS_API int talos_gui_init(void *window, void *gl_ctx)
 {
@@ -48,31 +79,32 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx)
     ImGuiIO &io    = GetIO();
     io.IniFilename = nullptr;
 
-    const char *home = vx_platform_get_home_dir();
+    char exe_path[VX_BUF_SIZE_4096];
+    char distributed_font_path[VX_PATH_MAX] = {0};
 
-    char user_font_dir[VX_BUF_SIZE_1024]  = {0};
-    char user_font_path[VX_BUF_SIZE_4096] = {0};
-
-    if (home)
+    if (vx_platform_get_self_exe(exe_path, sizeof(exe_path)) == VX_OK)
     {
-        snprintf(user_font_dir, sizeof(user_font_dir), "%s/.local/share/talos/assets/fonts", home);
+        char *last_slash = strrchr(exe_path, '/');
+        if (last_slash)
+        {
+            *last_slash = '\0';  // Chop off the executable name
 
-        snprintf(user_font_path,
-                 sizeof(user_font_path),
-                 "%s/JetBrainsMonoNerdFont-Medium.ttf",
-                 user_font_dir);
+            snprintf(distributed_font_path,
+                     sizeof(distributed_font_path),
+                     "%s/JetBrainsMonoNerdFont-Medium.ttf",
+                     exe_path);
+        }
     }
 
+    vx_dbglog("SELF_PATH: %s", exe_path);
+
+    const char *system_monospace = get_system_monospace_font();
+
     const char *font_search_paths[] = {
-        user_font_path,                                   // Local user data directory
-        "assets/fonts/JetBrainsMonoNerdFont-Medium.ttf",  // Portable development relative path
-        "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Medium.ttf",  // Standard Linux system path
-        "/usr/share/fonts/noto/NotoSans-Regular.ttf"              // Total generic system fallback
-    };
+        distributed_font_path, "assets/fonts/JetBrainsMonoNerdFont-Medium.ttf", system_monospace};
 
     const char *resolved_path = nullptr;
-
-    u32 path_count = sizeof(font_search_paths) / sizeof(font_search_paths[0]);
+    u32         path_count    = sizeof(font_search_paths) / sizeof(font_search_paths[0]);
 
     for (u32 i = 0; i < path_count; ++i)
     {
@@ -83,25 +115,6 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx)
                 resolved_path = font_search_paths[i];
                 break;
             }
-        }
-    }
-
-    if (resolved_path && (resolved_path != user_font_path) && home)
-    {
-        if (vx_mkdir_p(user_font_dir) != VX_OK)
-        {
-            VX_ASSERT_LOG("mkdir failed");
-            return 0;
-        }
-
-        if (vx_fs_cp(resolved_path, user_font_path))
-        {
-            vx_dbglog("Successfully cached font asset to local storage: %s", user_font_path);
-            resolved_path = user_font_path;
-        }
-        else
-        {
-            vx_dbglog("Failed local asset storage write verification pass.");
         }
     }
 

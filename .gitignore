@@ -3,6 +3,8 @@ crater/
 compile_commands.json
 .clang-format
 
+test/
+
 imgui.ini
 assets/
 
