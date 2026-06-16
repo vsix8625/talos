@@ -81,16 +81,54 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_separator();
         talos_gui_spacing();
 
-        for (u32 i = 0; i < state->cpu.core_count; ++i)
+        if (ctx->state & TALOS_RUNTIME_STATE_CPU_GROUPED)
         {
-            f32 core_load = state->cpu.usage[i + 1];
+            u32 group_size = 2;
+            if (state->cpu.core_count > 4)
+            {
+                group_size = (state->cpu.core_count > 32) ? (state->cpu.core_count / 8)
+                                                          : (state->cpu.core_count / 4);
+            }
 
-            char core_fmt[32];
-            snprintf(core_fmt, sizeof(core_fmt), "Core %-2u", i);
-            talos_gui_text(core_fmt);
+            u32 total_groups = state->cpu.core_count / group_size;
 
-            talos_gui_same_line();
-            talos_gui_progress_bar(core_load / 100.0f, "");
+            for (u32 g = 0; g < total_groups; ++g)
+            {
+                f32 group_load_sum = 0.0f;
+                u32 start_core     = g * group_size;
+
+                for (u32 c = 0; c < group_size; ++c)
+                {
+                    group_load_sum += state->cpu.usage[(start_core + c) + 1];
+                }
+                f32 group_avg = group_load_sum / (f32) group_size;
+
+                char group_fmt[64];
+                snprintf(group_fmt,
+                         sizeof(group_fmt),
+                         "Cluster %-2u (C%u-C%u)",
+                         g,
+                         start_core,
+                         start_core + group_size - 1);
+
+                talos_gui_text(group_fmt);
+                talos_gui_same_line();
+                talos_gui_progress_bar(group_avg / 100.0f, "");
+            }
+        }
+        else
+        {
+            for (u32 i = 0; i < state->cpu.core_count; ++i)
+            {
+                f32 core_load = state->cpu.usage[i + 1];
+
+                char core_fmt[32];
+                snprintf(core_fmt, sizeof(core_fmt), "Core %-2u", i);
+                talos_gui_text(core_fmt);
+
+                talos_gui_same_line();
+                talos_gui_progress_bar(core_load / 100.0f, "");
+            }
         }
     }
     talos_gui_end();
