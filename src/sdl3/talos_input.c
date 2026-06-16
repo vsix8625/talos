@@ -21,6 +21,19 @@ void talos_input_poll(struct talos_ctx *ctx)
                 break;
             }
 
+            case SDL_EVENT_WINDOW_FOCUS_GAINED:
+            {
+                ctx->event_timeout_ms  = 1000;
+                ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
+                break;
+            }
+            case SDL_EVENT_WINDOW_FOCUS_LOST:
+            {
+                ctx->event_timeout_ms  = 3000;
+                ctx->state            &= ~TALOS_RUNTIME_STATE_FOCUSED;
+                break;
+            }
+
             case SDL_EVENT_WINDOW_RESIZED:
             {
                 i32 w, h;
@@ -28,6 +41,13 @@ void talos_input_poll(struct talos_ctx *ctx)
                 ctx->width  = (u32) w;
                 ctx->height = (u32) h;
                 vx_dbglog("Res: %ux%u", ctx->width, ctx->height);
+                break;
+            }
+
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            {
+                ctx->width  = (u32) event.window.data1;
+                ctx->height = (u32) event.window.data2;
                 break;
             }
 
@@ -52,6 +72,13 @@ void talos_input_poll(struct talos_ctx *ctx)
                     case SDLK_F12:
                     {
                         ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
+                        break;
+                    }
+
+                    case SDLK_G:
+                    {
+                        // toggle cpu usage view
+                        ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED;
                         break;
                     }
 

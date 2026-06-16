@@ -3,8 +3,8 @@ cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
-minor: 2
-patch: 2
+minor: 3
+patch: 0
 
 codegen src/core/config.h
 {
@@ -111,7 +111,7 @@ target talos
 
     // copies files to target bin dir
     deploy:
-        external/SDL3/lib/libSDL3.so.0
+        /usr/local/lib/libSDL3.so.0
         assets/fonts/JetBrainsMonoNerdFont-Medium.ttf
 
     if(__os__ == "linux")
@@ -137,7 +137,6 @@ target talos
         -Isrc/sdl3
         -Isrc/gl
         -Iexternal/include
-        -Iexternal/include/SDL3
         -Iexternal/vx/include
 
     install: ~/.local/bin
