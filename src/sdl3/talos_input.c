@@ -55,6 +55,8 @@ void talos_input_poll(struct talos_ctx *ctx)
             {
                 switch (event.key.key)
                 {
+                    case SDLK_F1: ctx->state ^= TALOS_RUNTIME_STATE_ABOUT_WINDOW; break;
+
                     case SDLK_F11:
                     {
                         u32 flags = SDL_GetWindowFlags(ctx->window);

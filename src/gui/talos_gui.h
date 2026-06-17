@@ -229,6 +229,9 @@ TALOS_API
     void talos_gui_push_style_color(talos_gui_color_idx idx, vx_vec4f color);
     void talos_gui_pop_style_color(int count);
 
+    void talos_gui_text_disabled(const char *text);
+    void talos_gui_text_link(const char *label, const char *url);
+
 #ifdef __cplusplus
 }
 #endif

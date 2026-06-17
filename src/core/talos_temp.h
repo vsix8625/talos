@@ -9,11 +9,14 @@
 typedef struct
 {
     char source[TALOS_TEMP_NAME_MAX];  // driver name: k10temp, radeon, acpitz
-    char label[TALOS_TEMP_LABEL_MAX];  // human readable
+    char label[TALOS_TEMP_LABEL_MAX];
     char hwmon_path[512];
     f32  temp_c;     // current temp
     f32  temp_crit;  // critical threshold, 0 if unavailable
     f32  temp_max;   // max threshold, 0 if unavailable
+
+    u32  updates_since_change;
+    bool is_frozen;
 } talos_temp_sensor;
 
 typedef struct

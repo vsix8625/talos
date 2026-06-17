@@ -2,6 +2,9 @@
 #include "glad.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl3.h"
+#include "imgui_internal.h"
+
+#include <SDL3/SDL.h>
 
 extern "C"
 {
@@ -451,4 +454,34 @@ TALOS_API void talos_gui_push_style_color(talos_gui_color_idx idx, vx_vec4f colo
 TALOS_API void talos_gui_pop_style_color(int count)
 {
     PopStyleColor(count);
+}
+
+TALOS_API void talos_gui_text_disabled(const char *text)
+{
+    TextDisabled("%s", text);
+}
+
+TALOS_API void talos_gui_text_link(const char *label, const char *url)
+{
+    ImVec4 link_color       = ImVec4(0.30f, 0.60f, 0.90f, 1.00f);  // Bright subtle blue
+    ImVec4 link_hover_color = ImVec4(0.50f, 0.80f, 1.00f, 1.00f);  // Hover cyan flare
+
+    ImGuiID       id = GetID(label);
+    ImGuiContext &g  = *GImGui;
+
+    bool is_hovered = (g.HoveredId == id);
+
+    PushStyleColor(ImGuiCol_Text, is_hovered ? link_hover_color : link_color);
+    TextUnformatted(label);
+    PopStyleColor(1);
+
+    if (IsItemHovered())
+    {
+        SetMouseCursor(ImGuiMouseCursor_Hand);
+
+        if (IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            SDL_OpenURL(url);
+        }
+    }
 }

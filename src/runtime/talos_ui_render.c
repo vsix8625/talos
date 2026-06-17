@@ -1,6 +1,7 @@
 #include "../gui/talos_gui.h"
 
 #include "globals.h"
+#include "config.h"
 #include "talos_state.h"
 #include <inttypes.h>
 #include <signal.h>
@@ -51,7 +52,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_push_font_large();
 
     char header_buf[VX_BUF_SIZE_128];
-    snprintf(header_buf, sizeof(header_buf), "Talos System Monitor | %s", state->cpu.model);
+    snprintf(header_buf,
+             sizeof(header_buf),
+             "Talos System Monitor %s | %s | [F1: About]",
+             TALOS_VERSION_STRING,
+             state->cpu.model);
     talos_gui_text(header_buf);
 
     talos_gui_pop_font();
@@ -73,8 +78,6 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_set_next_window_pos(left_column_x, 60.0f);
     talos_gui_set_next_window_size(card_width, (f32) half_height);
 
-    // TODO: cluster core  usage 0-3 or 0-7 if cores > 32
-    // or NUMA nodes | CCX units
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
     {
@@ -461,6 +464,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             {
                 talos_temp_sensor *sensor = &state->temps.sensors[i];
 
+                if (sensor->is_frozen)
+                {
+                    continue;
+                }
+
                 char thermal_label[128];
                 snprintf(
                     thermal_label, sizeof(thermal_label), "[%s] %s", sensor->source, sensor->label);
@@ -573,5 +581,88 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         }
 
         talos_gui_end_popup();
+    }
+}
+
+void talos_ui_render_about_popup(struct talos_ctx *ctx)
+{
+    if (ctx == nullptr)
+    {
+        return;
+    }
+
+    f32 window_w = (f32) ctx->width * 0.55f;
+    f32 window_h = (f32) ctx->height * 0.65f;
+
+    if (window_w < 500.0f)
+    {
+        window_w = 500.0f;
+    }
+
+    if (window_h < 420.0f)
+    {
+        window_h = 420.0f;
+    }
+
+    f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
+    f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
+
+    talos_gui_set_next_window_pos(pos_x, pos_y);
+    talos_gui_set_next_window_size(window_w, window_h);
+
+    if (talos_gui_begin(
+            "About Talos", nullptr, TALOS_GUI_WINDOW_NO_COLLAPSE | TALOS_GUI_WINDOW_NO_RESIZE))
+    {
+        talos_gui_text("TALOS SYSTEM MONITOR");
+        talos_gui_text_disabled("A native Linux monitor.");
+
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text("Author:  vsix");
+        talos_gui_text_link("GitHub:  https://github.com/vsix8625", "https://github.com/vsix8625");
+        talos_gui_text_link("Project: https://github.com/vsix8625/talos",
+                            "https://github.com/vsix8625/talos");
+        talos_gui_text_link("Foundation:  https://github.com/vsix86/vx",
+                            "https://github.com/vsix86/vx");
+        talos_gui_text_link("Tool:    https://github.com/vsix8625/storm-knell",
+                            "https://github.com/vsix8625/storm-knell");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text_disabled("Upstream Open-Source Libraries:");
+        talos_gui_text_link("Windowing:   SDL3 (https://github.com/libsdl-org/SDL)",
+                            "https://github.com/libsdl-org/SDL");
+        talos_gui_text_link("Interface:   Dear ImGui (https://github.com/ocornut/imgui)",
+                            "https://github.com/ocornut/imgui");
+        talos_gui_text_link("GL Loader:   GLAD (https://github.com/Dav1dde/glad)",
+                            "https://github.com/Dav1dde/glad");
+        talos_gui_text_link("Graphics:    OpenGL Core Profile (https://www.opengl.org)",
+                            "https://www.opengl.org");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text_disabled("Operational Hotkeys:");
+        talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
+        talos_gui_text("[g]       Toggle dynamic Core Cluster layout view topologies");
+        talos_gui_text("[d]       Invoke Selected Process Signal Popup (Kill/Force)");
+        talos_gui_text("[F1]      Toggle this Information Overlay card");
+        talos_gui_text("[F11]     Toggle native Fullscreen canvas visibility");
+        talos_gui_text("[F12]     Terminate monitor and clean up system resources");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        if (talos_gui_button("Close"))
+        {
+            ctx->state &= ~TALOS_RUNTIME_STATE_ABOUT_WINDOW;
+        }
+
+        talos_gui_end();
     }
 }

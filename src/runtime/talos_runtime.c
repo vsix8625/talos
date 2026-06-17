@@ -53,6 +53,12 @@ void talos_runtime(struct talos_ctx *ctx)
 
         talos_ui_render_dashboard(ctx, &cpu_state, ui_list, ctx->width, ctx->height);
 
+        if (ctx->state & TALOS_RUNTIME_STATE_ABOUT_WINDOW)
+        {
+            // render about
+            talos_ui_render_about_popup(ctx);
+        }
+
         talos_gui_render_frame();
 
         // End ImGui

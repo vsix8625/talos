@@ -11,3 +11,5 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                talos_proc_list  *proc_list,
                                u32               width,
                                u32               height);
+
+void talos_ui_render_about_popup(struct talos_ctx *ctx);
