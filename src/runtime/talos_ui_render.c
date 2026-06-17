@@ -450,7 +450,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     if (talos_gui_begin("ThermalCardWrapper", nullptr, card_flags))
     {
-        talos_gui_text("Thermal Sensor FieldS");
+        talos_gui_text("Thermal Sensor Fields");
         talos_gui_separator();
         talos_gui_spacing();
 
@@ -619,13 +619,14 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_separator();
         talos_gui_spacing();
 
-        talos_gui_text("Author:  vsix");
-        talos_gui_text_link("GitHub:  https://github.com/vsix8625", "https://github.com/vsix8625");
-        talos_gui_text_link("Project: https://github.com/vsix8625/talos",
+        talos_gui_text("Author:  vsix8625");
+        talos_gui_text_link("GitHub:      https://github.com/vsix8625",
+                            "https://github.com/vsix8625");
+        talos_gui_text_link("Project:     https://github.com/vsix8625/talos",
                             "https://github.com/vsix8625/talos");
         talos_gui_text_link("Foundation:  https://github.com/vsix86/vx",
                             "https://github.com/vsix86/vx");
-        talos_gui_text_link("Tool:    https://github.com/vsix8625/storm-knell",
+        talos_gui_text_link("Tool:        https://github.com/vsix8625/storm-knell",
                             "https://github.com/vsix8625/storm-knell");
 
         talos_gui_spacing();
@@ -641,6 +642,9 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
                             "https://github.com/Dav1dde/glad");
         talos_gui_text_link("Graphics:    OpenGL Core Profile (https://www.opengl.org)",
                             "https://www.opengl.org");
+        talos_gui_text_link(
+            "Typography:  JetBrains Mono Nerd Font (https://github.com/ryanoasis/nerd-fonts)",
+            "https://github.com/ryanoasis/nerd-fonts");
 
         talos_gui_spacing();
         talos_gui_separator();
@@ -649,10 +653,10 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text_disabled("Operational Hotkeys:");
         talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
         talos_gui_text("[g]       Toggle dynamic Core Cluster layout view topologies");
-        talos_gui_text("[d]       Invoke Selected Process Signal Popup (Kill/Force)");
-        talos_gui_text("[F1]      Toggle this Information Overlay card");
-        talos_gui_text("[F11]     Toggle native Fullscreen canvas visibility");
-        talos_gui_text("[F12]     Terminate monitor and clean up system resources");
+        talos_gui_text("[d]       Kill or Force Quit the selected process");
+        talos_gui_text("[F1]      Toggle About card");
+        talos_gui_text("[F11]     Toggle Fullscreen mode");
+        talos_gui_text("[F12]     Exit Talos");
 
         talos_gui_spacing();
         talos_gui_separator();

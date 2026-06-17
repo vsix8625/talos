@@ -110,12 +110,16 @@ target talos
 
     }
 
-    rpath: $ORIGIN // sets -Wl,-rpath,$ORIGIN
+    if(__sk_version_minor__ >= 8)
+    {
+        print: "Using sk 0.8.x features"
+        rpath: $ORIGIN // sets -Wl,-rpath,$ORIGIN
 
-    // copies files to target bin dir
-    deploy:
-        /usr/local/lib/libSDL3.so.0
-        assets/fonts/JetBrainsMonoNerdFont-Medium.ttf
+        // copies files to target bin dir
+        deploy:
+            /usr/local/lib/libSDL3.so.0
+            assets/fonts/JetBrainsMonoNerdFont-Medium.ttf
+    }
 
     if(__os__ == "linux")
     {

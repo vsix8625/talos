@@ -199,6 +199,11 @@ TALOS_API void talos_gui_same_line(void)
     SameLine();
 }
 
+TALOS_API void talos_gui_same_line_offset(float offset_from_start_x)
+{
+    SameLine(offset_from_start_x);
+}
+
 TALOS_API void talos_gui_spacing(void)
 {
     Spacing();

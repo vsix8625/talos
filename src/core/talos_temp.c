@@ -172,7 +172,7 @@ void talos_temps_update(talos_temps *temps)
         if (fresh_temp == s->temp_c)
         {
             s->updates_since_change++;
-            if (s->updates_since_change >= 60)
+            if (s->updates_since_change >= 30)
             {
                 s->is_frozen = true;
             }
