@@ -47,7 +47,7 @@ const char *get_system_monospace_font(void)
     return font_path[0] != '\0' ? font_path : NULL;
 }
 
-TALOS_API int talos_gui_init(void *window, void *gl_ctx)
+TALOS_API int talos_gui_init(void *window, void *gl_ctx, int width)
 {
     IMGUI_CHECKVERSION();
     CreateContext();
@@ -123,8 +123,16 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx)
 
     if (resolved_path)
     {
-        g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 20.0f);
-        g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 28.0f);
+        if (width >= 1920)
+        {
+            g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 28.0f);
+            g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 36.0f);
+        }
+        else
+        {
+            g_imgui_font_small = io.Fonts->AddFontFromFileTTF(resolved_path, 20.0f);
+            g_imgui_font_large = io.Fonts->AddFontFromFileTTF(resolved_path, 28.0f);
+        }
 
         vx_dbglog("Loaded font from: %s", resolved_path);
     }
@@ -468,7 +476,7 @@ TALOS_API void talos_gui_text_disabled(const char *text)
 
 TALOS_API void talos_gui_text_link(const char *label, const char *url)
 {
-    ImVec4 link_color       = ImVec4(0.30f, 0.60f, 0.90f, 1.00f);  // Bright subtle blue
+    ImVec4 link_color       = ImVec4(0.30f, 0.60f, 0.90f, 1.00f);  // Bright blue
     ImVec4 link_hover_color = ImVec4(0.50f, 0.80f, 1.00f, 1.00f);  // Hover cyan flare
 
     ImGuiID       id = GetID(label);

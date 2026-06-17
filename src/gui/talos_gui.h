@@ -145,7 +145,7 @@ TALOS_API
     #define TALOS_API
 #endif
 
-    int  talos_gui_init(void *window, void *gl_ctx);
+    int  talos_gui_init(void *window, void *gl_ctx, int width);
     void talos_gui_shutdown(void);
 
     void talos_gui_new_frame(void);
