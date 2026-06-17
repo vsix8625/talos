@@ -165,6 +165,7 @@ TALOS_API
 
     void talos_gui_separator(void);
     void talos_gui_same_line(void);
+    void talos_gui_same_line_offset(float offset_from_start_x);
     void talos_gui_spacing(void);
 
     void  talos_gui_set_next_window_pos(float x, float y);
