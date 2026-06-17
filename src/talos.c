@@ -9,6 +9,7 @@
 
 #include <time.h>
 #include <inttypes.h>
+#include <SDL3/SDL.h>
 
 struct mem_arena *g_talos_global_arena = nullptr;
 
@@ -47,7 +48,21 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
-    if (!talos_gui_init(g_talos_ctx.window, g_talos_ctx.gl_context))
+    SDL_DisplayID display_id = SDL_GetDisplayForWindow(g_talos_ctx.window);
+
+    i32 mode_width = 1920;
+    if (display_id > 0)
+    {
+        const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id);
+        if (mode)
+        {
+            vx_dbglog("Monitor Resolution: %dx%d @ %gHz", mode->w, mode->h, mode->refresh_rate);
+
+            mode_width = mode->w;
+        }
+    }
+
+    if (!talos_gui_init(g_talos_ctx.window, g_talos_ctx.gl_context, mode_width))
     {
         result = VX_EXIT_FAILURE;
     }

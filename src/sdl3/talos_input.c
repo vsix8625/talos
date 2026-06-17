@@ -15,11 +15,7 @@ void talos_input_poll(struct talos_ctx *ctx)
 
         switch (event.type)
         {
-            case SDL_EVENT_QUIT:
-            {
-                ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
-                break;
-            }
+            case SDL_EVENT_QUIT: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
             {
@@ -34,6 +30,7 @@ void talos_input_poll(struct talos_ctx *ctx)
                 break;
             }
 
+            case SDL_EVENT_WINDOW_EXPOSED:
             case SDL_EVENT_WINDOW_RESIZED:
             {
                 i32 w, h;
@@ -71,18 +68,9 @@ void talos_input_poll(struct talos_ctx *ctx)
                         break;
                     }
 
-                    case SDLK_F12:
-                    {
-                        ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
-                        break;
-                    }
+                    case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
 
-                    case SDLK_G:
-                    {
-                        // toggle cpu usage view
-                        ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED;
-                        break;
-                    }
+                    case SDLK_G: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
 
                     default: break;
                 }

@@ -652,7 +652,7 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
 
         talos_gui_text_disabled("Operational Hotkeys:");
         talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
-        talos_gui_text("[g]       Toggle dynamic Core Cluster layout view topologies");
+        talos_gui_text("[g]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
         talos_gui_text("[F1]      Toggle About card");
         talos_gui_text("[F11]     Toggle Fullscreen mode");
