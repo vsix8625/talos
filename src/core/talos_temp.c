@@ -12,27 +12,32 @@ static const struct
     const char *label;
 } k_temp_labels[] = {
     {"k10temp", "CPU"},
+    {"coretemp", "CPU"},
     {"radeon", "GPU"},
     {"amdgpu", "GPU"},
-    {"acpitz", "Ambient"},
-    {"coretemp", "CPU"},
     {"nvme", "NVMe"},
+    {"pch", "PCH (Chipset)"},
+    {"acpitz", "System"},
     {"it8728", "Chassis"},
     {"hp", "Chassis"},
     {"nct6775", "Chassis"},
 };
+
 #define K_TEMP_LABELS_COUNT (sizeof(k_temp_labels) / sizeof(k_temp_labels[0]))
 
 static void resolve_label(talos_temp_sensor *s)
 {
     for (u32 i = 0; i < K_TEMP_LABELS_COUNT; i++)
     {
-        if (strcmp(s->source, k_temp_labels[i].driver) == 0)
+        size_t s_len = strlen(k_temp_labels[i].driver);
+
+        if (strncmp(s->source, k_temp_labels[i].driver, s_len) == 0)
         {
             snprintf(s->label, sizeof(s->label), "%s", k_temp_labels[i].label);
             return;
         }
     }
+
     // fallback to driver name
     strncpy(s->label, s->source, sizeof(s->label) - 1);
     s->label[sizeof(s->label) - 1] = '\0';
@@ -47,9 +52,14 @@ static f32 read_temp_file(const char *path)
     }
 
     i32 val = 0;
-    fscanf(fp, "%d", &val);
-    fclose(fp);
+    if (fscanf(fp, "%d", &val) != 1)
+    {
+        vx_dbglog("Failed to parse temperature from file: %s", path);
+        fclose(fp);
+        return 0.0f;
+    }
 
+    fclose(fp);
     return (f32) val / 1000.0f;
 }
 
@@ -72,6 +82,10 @@ static void read_sensor_name(const char *hwmon_path, char *out, u32 size)
         {
             out[len - 1] = '\0';
         }
+    }
+    else
+    {
+        snprintf(out, size, "unknown");
     }
     fclose(fp);
 }
@@ -115,11 +129,12 @@ bool talos_temps_init(talos_temps *temps)
 
         talos_temp_sensor *s = &temps->sensors[temps->count];
 
+        snprintf(s->hwmon_path, sizeof(s->hwmon_path), "%s", hwmon_path);
+
         read_sensor_name(hwmon_path, s->source, sizeof(s->source));
 
         resolve_label(s);
 
-        // read optional thresholds
         char path[VX_PATH_MAX];
         snprintf(path, sizeof(path), "%s/temp1_crit", hwmon_path);
         s->temp_crit = read_temp_file(path);
@@ -145,36 +160,29 @@ void talos_temps_update(talos_temps *temps)
         return;
     }
 
-    DIR *dir = opendir(HWMON_BASE);
-    if (dir == nullptr)
+    for (u32 i = 0; i < temps->count; i++)
     {
-        return;
-    }
-
-    u32            idx = 0;
-    struct dirent *entry;
-
-    while ((entry = readdir(dir)) != nullptr && idx < temps->count)
-    {
-        if (strncmp(entry->d_name, "hwmon", 5) != 0)
-        {
-            continue;
-        }
+        talos_temp_sensor *s = &temps->sensors[i];
 
         char path[VX_PATH_MAX];
-        snprintf(path, sizeof(path), "%s/%s/temp1_input", HWMON_BASE, entry->d_name);
+        snprintf(path, sizeof(path), "%s/temp1_input", s->hwmon_path);
 
-        FILE *fp = fopen(path, "r");
-        if (fp == nullptr)
+        f32 fresh_temp = read_temp_file(path);
+
+        if (fresh_temp == s->temp_c)
         {
-            continue;
+            s->updates_since_change++;
+            if (s->updates_since_change >= 60)
+            {
+                s->is_frozen = true;
+            }
         }
-        fclose(fp);
+        else
+        {
+            s->updates_since_change = 0;
+            s->is_frozen            = false;
+        }
 
-        snprintf(path, sizeof(path), "%s/%s/temp1_input", HWMON_BASE, entry->d_name);
-        temps->sensors[idx].temp_c = read_temp_file(path);
-        idx++;
+        s->temp_c = fresh_temp;
     }
-
-    closedir(dir);
 }

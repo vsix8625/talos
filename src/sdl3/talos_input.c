@@ -23,13 +23,13 @@ void talos_input_poll(struct talos_ctx *ctx)
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
             {
-                ctx->event_timeout_ms  = 1000;
+                ctx->event_timeout_ms  = 800;
                 ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
             case SDL_EVENT_WINDOW_FOCUS_LOST:
             {
-                ctx->event_timeout_ms  = 3000;
+                ctx->event_timeout_ms  = 1600;
                 ctx->state            &= ~TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
@@ -55,6 +55,8 @@ void talos_input_poll(struct talos_ctx *ctx)
             {
                 switch (event.key.key)
                 {
+                    case SDLK_F1: ctx->state ^= TALOS_RUNTIME_STATE_ABOUT_WINDOW; break;
+
                     case SDLK_F11:
                     {
                         u32 flags = SDL_GetWindowFlags(ctx->window);

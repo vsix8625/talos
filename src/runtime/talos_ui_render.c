@@ -1,9 +1,22 @@
 #include "../gui/talos_gui.h"
 
 #include "globals.h"
+#include "config.h"
 #include "talos_state.h"
 #include <inttypes.h>
 #include <signal.h>
+
+static inline vx_vec4f ui_calculate_load_color(f32 fraction)
+{
+    vx_vec4f color;
+
+    color.r = fraction * 1.0f;
+    color.g = 0.8f * (1.0f - fraction);
+    color.b = 0.6f * (1.0f - fraction);
+    color.a = 1.0f;
+
+    return color;
+}
 
 void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                talos_state      *state,
@@ -39,7 +52,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_push_font_large();
 
     char header_buf[VX_BUF_SIZE_128];
-    snprintf(header_buf, sizeof(header_buf), "Talos System Monitor | %s", state->cpu.model);
+    snprintf(header_buf,
+             sizeof(header_buf),
+             "Talos System Monitor %s | %s | [F1: About]",
+             TALOS_VERSION_STRING,
+             state->cpu.model);
     talos_gui_text(header_buf);
 
     talos_gui_pop_font();
@@ -61,8 +78,6 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_set_next_window_pos(left_column_x, 60.0f);
     talos_gui_set_next_window_size(card_width, (f32) half_height);
 
-    // TODO: cluster core  usage 0-3 or 0-7 if cores > 32
-    // or NUMA nodes | CCX units
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
     {
@@ -70,13 +85,20 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_separator();
         talos_gui_spacing();
 
-        f32 aggregate_load = state->cpu.usage[0];
+        f32 aggregate_load     = state->cpu.usage[0];
+        f32 aggregate_fraction = aggregate_load / 100.0f;
 
         char agg_text[VX_BUF_SIZE_64];
         snprintf(agg_text, sizeof(agg_text), "Total Workload: %.1f%%", aggregate_load);
         talos_gui_text(agg_text);
 
-        talos_gui_progress_bar(aggregate_load / 100.0f, "");
+        vx_vec4f agg_color = ui_calculate_load_color(aggregate_fraction);
+        talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, agg_color);
+
+        talos_gui_progress_bar(aggregate_fraction, "");
+
+        talos_gui_pop_style_color(1);
+
         talos_gui_spacing();
         talos_gui_separator();
         talos_gui_spacing();
@@ -101,7 +123,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 {
                     group_load_sum += state->cpu.usage[(start_core + c) + 1];
                 }
-                f32 group_avg = group_load_sum / (f32) group_size;
+                f32 group_avg      = group_load_sum / (f32) group_size;
+                f32 group_fraction = group_avg / 100.0f;
 
                 char group_fmt[64];
                 snprintf(group_fmt,
@@ -113,21 +136,34 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                 talos_gui_text(group_fmt);
                 talos_gui_same_line();
-                talos_gui_progress_bar(group_avg / 100.0f, "");
+
+                vx_vec4f group_color = ui_calculate_load_color(group_fraction);
+                talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, group_color);
+
+                talos_gui_progress_bar(group_fraction, "");
+
+                talos_gui_pop_style_color(1);
             }
         }
         else
         {
             for (u32 i = 0; i < state->cpu.core_count; ++i)
             {
-                f32 core_load = state->cpu.usage[i + 1];
+                f32 core_load     = state->cpu.usage[i + 1];
+                f32 core_fraction = core_load / 100.0f;
 
                 char core_fmt[32];
                 snprintf(core_fmt, sizeof(core_fmt), "Core %-2u", i);
                 talos_gui_text(core_fmt);
 
                 talos_gui_same_line();
-                talos_gui_progress_bar(core_load / 100.0f, "");
+
+                vx_vec4f core_color = ui_calculate_load_color(core_fraction);
+                talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, core_color);
+
+                talos_gui_progress_bar(core_fraction, "");
+
+                talos_gui_pop_style_color(1);
             }
         }
     }
@@ -324,16 +360,20 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         f32 avail_gb = (f32) state->mem.available_kb / 1024.0f / 1024.0f;
         f32 cache_gb = (f32) state->mem.cached_kb / 1024.0f / 1024.0f;
 
-        f32 mem_fraction = 0.0f;
+        f32 ram_fraction = 0.0f;
         if (state->mem.total_kb > 0)
         {
-            mem_fraction = (f32) state->mem.used_kb / (f32) state->mem.total_kb;
+            ram_fraction = (f32) state->mem.used_kb / (f32) state->mem.total_kb;
         }
 
         char ram_text[128];
         snprintf(ram_text, sizeof(ram_text), "RAM Usage: %.2f GiB / %.2f GiB", used_gb, total_gb);
         talos_gui_text(ram_text);
-        talos_gui_progress_bar(mem_fraction, "");
+
+        vx_vec4f ram_color = ui_calculate_load_color(ram_fraction);
+        talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, ram_color);
+        talos_gui_progress_bar(ram_fraction, "");
+        talos_gui_pop_style_color(1);
 
         talos_gui_spacing();
 
@@ -359,10 +399,13 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                      swap_used,
                      swap_total);
             talos_gui_text(ram_text);
-            talos_gui_progress_bar(swap_fraction, "");
-        }
 
-        // NOTE: placeholder disk I/O and Network
+            vx_vec4f swap_color = ui_calculate_load_color(swap_fraction);
+
+            talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, swap_color);
+            talos_gui_progress_bar(swap_fraction, "");
+            talos_gui_pop_style_color(1);
+        }
 
         talos_gui_separator();
         talos_gui_spacing();
@@ -421,6 +464,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             {
                 talos_temp_sensor *sensor = &state->temps.sensors[i];
 
+                if (sensor->is_frozen)
+                {
+                    continue;
+                }
+
                 char thermal_label[128];
                 snprintf(
                     thermal_label, sizeof(thermal_label), "[%s] %s", sensor->source, sensor->label);
@@ -445,7 +493,12 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                         thermal_fraction = 0.0f;
                     }
 
+                    vx_vec4f sensor_color = ui_calculate_load_color(thermal_fraction);
+                    talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, sensor_color);
+
                     talos_gui_progress_bar(thermal_fraction, "");
+
+                    talos_gui_pop_style_color(1);
                 }
                 else
                 {
@@ -455,7 +508,13 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     {
                         fallback_fraction = 1.0f;
                     }
+
+                    vx_vec4f sensor_color = ui_calculate_load_color(fallback_fraction);
+                    talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, sensor_color);
+
                     talos_gui_progress_bar(fallback_fraction, "");
+
+                    talos_gui_pop_style_color(1);
                 }
             }
         }
@@ -522,5 +581,88 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         }
 
         talos_gui_end_popup();
+    }
+}
+
+void talos_ui_render_about_popup(struct talos_ctx *ctx)
+{
+    if (ctx == nullptr)
+    {
+        return;
+    }
+
+    f32 window_w = (f32) ctx->width * 0.55f;
+    f32 window_h = (f32) ctx->height * 0.65f;
+
+    if (window_w < 500.0f)
+    {
+        window_w = 500.0f;
+    }
+
+    if (window_h < 420.0f)
+    {
+        window_h = 420.0f;
+    }
+
+    f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
+    f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
+
+    talos_gui_set_next_window_pos(pos_x, pos_y);
+    talos_gui_set_next_window_size(window_w, window_h);
+
+    if (talos_gui_begin(
+            "About Talos", nullptr, TALOS_GUI_WINDOW_NO_COLLAPSE | TALOS_GUI_WINDOW_NO_RESIZE))
+    {
+        talos_gui_text("TALOS SYSTEM MONITOR");
+        talos_gui_text_disabled("A native Linux monitor.");
+
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text("Author:  vsix");
+        talos_gui_text_link("GitHub:  https://github.com/vsix8625", "https://github.com/vsix8625");
+        talos_gui_text_link("Project: https://github.com/vsix8625/talos",
+                            "https://github.com/vsix8625/talos");
+        talos_gui_text_link("Foundation:  https://github.com/vsix86/vx",
+                            "https://github.com/vsix86/vx");
+        talos_gui_text_link("Tool:    https://github.com/vsix8625/storm-knell",
+                            "https://github.com/vsix8625/storm-knell");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text_disabled("Upstream Open-Source Libraries:");
+        talos_gui_text_link("Windowing:   SDL3 (https://github.com/libsdl-org/SDL)",
+                            "https://github.com/libsdl-org/SDL");
+        talos_gui_text_link("Interface:   Dear ImGui (https://github.com/ocornut/imgui)",
+                            "https://github.com/ocornut/imgui");
+        talos_gui_text_link("GL Loader:   GLAD (https://github.com/Dav1dde/glad)",
+                            "https://github.com/Dav1dde/glad");
+        talos_gui_text_link("Graphics:    OpenGL Core Profile (https://www.opengl.org)",
+                            "https://www.opengl.org");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        talos_gui_text_disabled("Operational Hotkeys:");
+        talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
+        talos_gui_text("[g]       Toggle dynamic Core Cluster layout view topologies");
+        talos_gui_text("[d]       Invoke Selected Process Signal Popup (Kill/Force)");
+        talos_gui_text("[F1]      Toggle this Information Overlay card");
+        talos_gui_text("[F11]     Toggle native Fullscreen canvas visibility");
+        talos_gui_text("[F12]     Terminate monitor and clean up system resources");
+
+        talos_gui_spacing();
+        talos_gui_separator();
+        talos_gui_spacing();
+
+        if (talos_gui_button("Close"))
+        {
+            ctx->state &= ~TALOS_RUNTIME_STATE_ABOUT_WINDOW;
+        }
+
+        talos_gui_end();
     }
 }
