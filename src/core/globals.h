@@ -33,3 +33,5 @@ struct talos_ctx
 
     talos_rtime_state state;
 };
+
+#define TALOS_EVENT_TIME_OUT_MS 1100

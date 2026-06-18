@@ -81,7 +81,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
     {
-        talos_gui_text("Processor Telemetry");
+        talos_gui_text("CPU");
         talos_gui_separator();
         talos_gui_spacing();
 
@@ -179,7 +179,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     if (talos_gui_begin("ProcessCardWrapper", nullptr, proc_card_flags))
     {
-        talos_gui_text("Active Process Table");
+        talos_gui_text("PID");
         talos_gui_separator();
         talos_gui_spacing();
 
@@ -351,7 +351,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     if (talos_gui_begin("MemoryCardWrapper", nullptr, card_flags))
     {
-        talos_gui_text("Memory Allocation State");
+        talos_gui_text("RAM & I/O");
         talos_gui_separator();
         talos_gui_spacing();
 
@@ -450,7 +450,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     if (talos_gui_begin("ThermalCardWrapper", nullptr, card_flags))
     {
-        talos_gui_text("Thermal Sensor Fields");
+        talos_gui_text("FAN");
         talos_gui_separator();
         talos_gui_spacing();
 

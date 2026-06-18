@@ -17,6 +17,9 @@ typedef struct
     talos_disk_io disk;
     talos_net_io  net;
 
+    char net_interface[VX_BUF_SIZE_32];
+    char disk_device[VX_BUF_SIZE_32];
+
     atomic_bool      running;
     struct vx_thread thread;
     talos_proc_state proc_state;

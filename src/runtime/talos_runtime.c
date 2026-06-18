@@ -31,7 +31,7 @@ void talos_runtime(struct talos_ctx *ctx)
 
     SDL_Color bronze_color = {.r = 54, .g = 47, .b = 40, .a = 255};
 
-    ctx->event_timeout_ms  = 800;
+    ctx->event_timeout_ms  = TALOS_EVENT_TIME_OUT_MS;
     ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
 
     while (ctx->state & TALOS_RUNTIME_STATE_RUNNING)

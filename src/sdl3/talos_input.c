@@ -19,13 +19,13 @@ void talos_input_poll(struct talos_ctx *ctx)
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
             {
-                ctx->event_timeout_ms  = 800;
+                ctx->event_timeout_ms  = TALOS_EVENT_TIME_OUT_MS;
                 ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
             case SDL_EVENT_WINDOW_FOCUS_LOST:
             {
-                ctx->event_timeout_ms  = 1600;
+                ctx->event_timeout_ms  = TALOS_EVENT_TIME_OUT_MS * 2;
                 ctx->state            &= ~TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
