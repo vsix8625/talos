@@ -53,8 +53,19 @@ void talos_input_poll(struct talos_ctx *ctx)
                 switch (event.key.key)
                 {
                     case SDLK_F1: ctx->state ^= TALOS_RUNTIME_STATE_ABOUT_WINDOW; break;
-                    case SDLK_F2: ctx->state ^= TALOS_RUNTIME_STATE_LIMIT_FPS; break;
-                    case SDLK_F3: ctx->state ^= TALOS_RUNTIME_STATE_BOOST_FPS; break;
+
+                    case SDLK_F2:
+                    {
+                        ctx->state &= ~TALOS_RUNTIME_STATE_BOOST_FPS;
+                        ctx->state ^= TALOS_RUNTIME_STATE_LIMIT_FPS;
+                        break;
+                    }
+                    case SDLK_F3:
+                    {
+                        ctx->state &= ~TALOS_RUNTIME_STATE_LIMIT_FPS;
+                        ctx->state ^= TALOS_RUNTIME_STATE_BOOST_FPS;
+                        break;
+                    }
 
                     case SDLK_F11:
                     {

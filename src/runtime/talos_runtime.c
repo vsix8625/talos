@@ -82,18 +82,15 @@ void talos_runtime(struct talos_ctx *ctx)
 
         if (ctx->state & TALOS_RUNTIME_STATE_BOOST_FPS)
         {
-            ctx->state         &= ~TALOS_RUNTIME_STATE_LIMIT_FPS;
-            ctx->target_fps_ms  = TALOS_TARGET_FPS_60;
+            ctx->target_fps_ms = TALOS_TARGET_FPS_60;
         }
         else if (ctx->state & TALOS_RUNTIME_STATE_LIMIT_FPS)
         {
-            ctx->state         &= ~TALOS_RUNTIME_STATE_BOOST_FPS;
-            ctx->target_fps_ms  = TALOS_TARGET_FPS_5;
+            ctx->target_fps_ms = TALOS_TARGET_FPS_5;
         }
         else
         {
-            ctx->state         &= ~TALOS_RUNTIME_STATE_LIMIT_FPS;
-            ctx->target_fps_ms  = TALOS_TARGET_FPS_30;
+            ctx->target_fps_ms = TALOS_TARGET_FPS_30;
         }
 
         u64 frame_ticks = vx_time_ms() - start_ticks;
