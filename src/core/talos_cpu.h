@@ -23,6 +23,7 @@ typedef struct
     talos_cpu_stat *prev;   // [core_count + 1] +1 for aggregate
     talos_cpu_stat *curr;   // [core_count + 1]
     f32            *usage;  // [core_count + 1] percentage per core + aggregate
+    u64            *freq_mhz;
     char            model[TALOS_CPU_NAME_MAX];
     u64             total_ticks_delta;
 } talos_cpu;

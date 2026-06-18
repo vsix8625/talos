@@ -3,8 +3,13 @@
 #include "globals.h"
 #include "config.h"
 #include "talos_state.h"
+
+#include <SDL3/SDL_timer.h>
 #include <inttypes.h>
 #include <signal.h>
+
+#define TALOS_MAX_CLUSTERS  8
+#define TALOS_MAX_RAW_CORES 256
 
 static inline vx_vec4f ui_calculate_load_color(f32 fraction)
 {
@@ -34,6 +39,14 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     static char selected_proc_name[VX_BUF_SIZE_256] = {0};
 
+    const f32 transition_speed = 8.0f;
+    f32       lerp_factor      = ctx->dt * transition_speed;
+
+    if (lerp_factor > 1.0f)
+    {
+        lerp_factor = 1.0f;
+    }
+
     talos_gui_set_next_window_pos(0.0f, 0.0f);
     talos_gui_set_next_window_size((f32) width, (f32) height);
 
@@ -51,12 +64,27 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     talos_gui_push_font_large();
 
+    const char *fps_mode = "";
+    if (ctx->state & TALOS_RUNTIME_STATE_BOOST_FPS)
+    {
+        fps_mode = "Boosted";
+    }
+    else if (ctx->state & TALOS_RUNTIME_STATE_LIMIT_FPS)
+    {
+        fps_mode = "Limited";
+    }
+    else
+    {
+        fps_mode = "Normal";
+    }
+
     char header_buf[VX_BUF_SIZE_128];
     snprintf(header_buf,
              sizeof(header_buf),
-             "Talos System Monitor %s | %s | [F1: About]",
+             "Talos System Monitor %s | %s | %s Mode | [F1: About]",
              TALOS_VERSION_STRING,
-             state->cpu.model);
+             state->cpu.model,
+             fps_mode);
     talos_gui_text(header_buf);
 
     talos_gui_pop_font();
@@ -81,21 +109,36 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_push_font_small();
     if (talos_gui_begin("CPUCardWrapper", nullptr, card_flags))
     {
-        talos_gui_text("CPU");
+        static f32 visual_mhz = 0.0f;
+        if (visual_mhz == 0.0f)
+        {
+            visual_mhz = (f32) state->cpu.freq_mhz[0];
+        }
+
+        visual_mhz += ((f32) state->cpu.freq_mhz[0] - visual_mhz) * lerp_factor;
+        char cpu_header_buf[VX_BUF_SIZE_32];
+        snprintf(cpu_header_buf, sizeof(cpu_header_buf), "CPU %.0f MHz", visual_mhz);
+
+        talos_gui_text(cpu_header_buf);
         talos_gui_separator();
         talos_gui_spacing();
+
+        static f32 aggregate_visual_load = 0.0f;
 
         f32 aggregate_load     = state->cpu.usage[0];
         f32 aggregate_fraction = aggregate_load / 100.0f;
 
+        aggregate_visual_load += (aggregate_fraction - aggregate_visual_load) * lerp_factor;
+
         char agg_text[VX_BUF_SIZE_64];
-        snprintf(agg_text, sizeof(agg_text), "Total Workload: %.1f%%", aggregate_load);
+        snprintf(
+            agg_text, sizeof(agg_text), "Total Workload: %.1f%%", aggregate_visual_load * 100.0f);
         talos_gui_text(agg_text);
 
-        vx_vec4f agg_color = ui_calculate_load_color(aggregate_fraction);
+        vx_vec4f agg_color = ui_calculate_load_color(aggregate_visual_load);
         talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, agg_color);
 
-        talos_gui_progress_bar(aggregate_fraction, "");
+        talos_gui_progress_bar(aggregate_visual_load, "");
 
         talos_gui_pop_style_color(1);
 
@@ -114,6 +157,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
             u32 total_groups = state->cpu.core_count / group_size;
 
+            static f32 cluster_visual_load[TALOS_MAX_CLUSTERS];
+
             for (u32 g = 0; g < total_groups; ++g)
             {
                 f32 group_load_sum = 0.0f;
@@ -126,6 +171,9 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 f32 group_avg      = group_load_sum / (f32) group_size;
                 f32 group_fraction = group_avg / 100.0f;
 
+                cluster_visual_load[g] += (group_fraction - cluster_visual_load[g]) * lerp_factor;
+                f32 current_visual      = cluster_visual_load[g];
+
                 char group_fmt[64];
                 snprintf(group_fmt,
                          sizeof(group_fmt),
@@ -137,20 +185,25 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 talos_gui_text(group_fmt);
                 talos_gui_same_line();
 
-                vx_vec4f group_color = ui_calculate_load_color(group_fraction);
+                vx_vec4f group_color = ui_calculate_load_color(current_visual);
                 talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, group_color);
 
-                talos_gui_progress_bar(group_fraction, "");
+                talos_gui_progress_bar(current_visual, "");
 
                 talos_gui_pop_style_color(1);
             }
         }
         else
         {
+            static f32 core_visual_load[TALOS_MAX_RAW_CORES];
+
             for (u32 i = 0; i < state->cpu.core_count; ++i)
             {
                 f32 core_load     = state->cpu.usage[i + 1];
                 f32 core_fraction = core_load / 100.0f;
+
+                core_visual_load[i]     += (core_fraction - core_visual_load[i]) * lerp_factor;
+                f32 current_core_visual  = core_visual_load[i];
 
                 char core_fmt[32];
                 snprintf(core_fmt, sizeof(core_fmt), "Core %-2u", i);
@@ -158,10 +211,10 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                 talos_gui_same_line();
 
-                vx_vec4f core_color = ui_calculate_load_color(core_fraction);
+                vx_vec4f core_color = ui_calculate_load_color(current_core_visual);
                 talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, core_color);
 
-                talos_gui_progress_bar(core_fraction, "");
+                talos_gui_progress_bar(current_core_visual, "");
 
                 talos_gui_pop_style_color(1);
             }
@@ -355,6 +408,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_separator();
         talos_gui_spacing();
 
+        static f32 ram_visual_load = 0.0f;
+
         f32 total_gb = (f32) state->mem.total_kb / 1024.0f / 1024.0f;
         f32 used_gb  = (f32) state->mem.used_kb / 1024.0f / 1024.0f;
         f32 avail_gb = (f32) state->mem.available_kb / 1024.0f / 1024.0f;
@@ -366,13 +421,15 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             ram_fraction = (f32) state->mem.used_kb / (f32) state->mem.total_kb;
         }
 
+        ram_visual_load += (ram_fraction - ram_visual_load) * lerp_factor;
+
         char ram_text[128];
         snprintf(ram_text, sizeof(ram_text), "RAM Usage: %.2f GiB / %.2f GiB", used_gb, total_gb);
         talos_gui_text(ram_text);
 
-        vx_vec4f ram_color = ui_calculate_load_color(ram_fraction);
+        vx_vec4f ram_color = ui_calculate_load_color(ram_visual_load);
         talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, ram_color);
-        talos_gui_progress_bar(ram_fraction, "");
+        talos_gui_progress_bar(ram_visual_load, "");
         talos_gui_pop_style_color(1);
 
         talos_gui_spacing();
@@ -389,9 +446,13 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             talos_gui_separator();
             talos_gui_spacing();
 
+            static f32 swap_visual_load = 0.0f;
+
             f32 swap_total    = (f32) state->mem.swap_total_kb / 1024.0f / 1024.0f;
             f32 swap_used     = (f32) state->mem.swap_used_kb / 1024.0f / 1024.0f;
             f32 swap_fraction = swap_used / swap_total;
+
+            swap_visual_load += (swap_fraction - swap_visual_load) * lerp_factor;
 
             snprintf(ram_text,
                      sizeof(ram_text),
@@ -400,10 +461,9 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                      swap_total);
             talos_gui_text(ram_text);
 
-            vx_vec4f swap_color = ui_calculate_load_color(swap_fraction);
-
+            vx_vec4f swap_color = ui_calculate_load_color(swap_visual_load);
             talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, swap_color);
-            talos_gui_progress_bar(swap_fraction, "");
+            talos_gui_progress_bar(swap_visual_load, "");
             talos_gui_pop_style_color(1);
         }
 
@@ -460,6 +520,15 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         }
         else
         {
+            // hardcode 8 for now
+            static f32 temp_visual_load[8] = {0};
+
+            u32 active_sensors = state->temps.count;
+            if (active_sensors > 8)
+            {
+                active_sensors = 8;
+            }
+
             for (u32 i = 0; i < state->temps.count; ++i)
             {
                 talos_temp_sensor *sensor = &state->temps.sensors[i];
@@ -482,21 +551,32 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                 if (sensor->temp_crit > 0.0f)
                 {
-                    f32 thermal_fraction = sensor->temp_c / sensor->temp_crit;
-                    if (thermal_fraction > 1.0f)
+                    f32 raw_fraction = 0.0f;
+                    if (sensor->temp_crit > 0.0f)
                     {
-                        thermal_fraction = 1.0f;
+                        raw_fraction = sensor->temp_c / sensor->temp_crit;
+                    }
+                    else
+                    {
+                        raw_fraction = sensor->temp_c / 100.0f;
                     }
 
-                    if (thermal_fraction < 0.0f)
+                    if (raw_fraction > 1.0f)
                     {
-                        thermal_fraction = 0.0f;
+                        raw_fraction = 1.0f;
+                    }
+                    if (raw_fraction < 0.0f)
+                    {
+                        raw_fraction = 0.0f;
                     }
 
-                    vx_vec4f sensor_color = ui_calculate_load_color(thermal_fraction);
+                    temp_visual_load[i] += (raw_fraction - temp_visual_load[i]) * lerp_factor;
+                    f32 current_visual   = temp_visual_load[i];
+
+                    vx_vec4f sensor_color = ui_calculate_load_color(current_visual);
                     talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, sensor_color);
 
-                    talos_gui_progress_bar(thermal_fraction, "");
+                    talos_gui_progress_bar(current_visual, "");
 
                     talos_gui_pop_style_color(1);
                 }
@@ -655,6 +735,8 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[g]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
         talos_gui_text("[F1]      Toggle About card");
+        talos_gui_text("[F2]      Toggle Limited mode");
+        talos_gui_text("[F3]      Toggle Boosted mode");
         talos_gui_text("[F11]     Toggle Fullscreen mode");
         talos_gui_text("[F12]     Exit Talos");
 

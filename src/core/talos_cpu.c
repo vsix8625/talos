@@ -7,6 +7,38 @@
 #define PROC_STAT    "/proc/stat"
 #define PROC_CPUINFO "/proc/cpuinfo"
 
+static u64 cpu_get_core_mhz(u32 core_id)
+{
+    char path[VX_BUF_SIZE_64];
+    char buf[VX_BUF_SIZE_32];
+    u64  mhz = 0;
+
+    snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq", core_id);
+
+    FILE *fp = fopen(path, "r");
+    if (fp == nullptr)
+    {
+        snprintf(
+            path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/cpuinfo_cur_freq", core_id);
+
+        fp = fopen(path, "r");
+    }
+
+    if (fp != nullptr)
+    {
+        u64 khz = 0;
+        if (fgets(buf, sizeof(buf), fp) != nullptr)
+        {
+            if (sscanf(buf, "%" SCNu64, &khz) == 1)
+            {
+                mhz = khz / 1000;
+            }
+        }
+        fclose(fp);
+    }
+    return mhz;
+}
+
 static bool cpu_read_stat(talos_cpu_stat *stats, u32 count)
 {
     FILE *fp = fopen(PROC_STAT, "r");
@@ -119,11 +151,13 @@ bool talos_cpu_init(talos_cpu *cpu)
     cpu->core_count = vx_cpu_get_nproc();
     u32 total       = cpu->core_count + 1;
 
-    cpu->prev  = mem_arena_zalloc(g_talos_global_arena, total * sizeof(talos_cpu_stat));
-    cpu->curr  = mem_arena_zalloc(g_talos_global_arena, total * sizeof(talos_cpu_stat));
-    cpu->usage = mem_arena_zalloc(g_talos_global_arena, total * sizeof(f32));
+    cpu->prev     = mem_arena_zalloc(g_talos_global_arena, total * sizeof(talos_cpu_stat));
+    cpu->curr     = mem_arena_zalloc(g_talos_global_arena, total * sizeof(talos_cpu_stat));
+    cpu->usage    = mem_arena_zalloc(g_talos_global_arena, total * sizeof(f32));
+    cpu->freq_mhz = mem_arena_zalloc(g_talos_global_arena, total * sizeof(u64));
 
-    if (cpu->prev == nullptr || cpu->curr == nullptr || cpu->usage == nullptr)
+    if (cpu->prev == nullptr || cpu->curr == nullptr || cpu->usage == nullptr ||
+        cpu->freq_mhz == nullptr)
     {
         VX_ASSERT_LOG("Failed to allocate");
         talos_cpu_destroy(cpu);
@@ -131,7 +165,6 @@ bool talos_cpu_init(talos_cpu *cpu)
     }
 
     cpu_read_model(cpu->model, sizeof(cpu->model));
-
     cpu_read_stat(cpu->curr, total);
 
     return true;
@@ -151,10 +184,21 @@ void talos_cpu_update(talos_cpu *cpu)
     u32 total = cpu->core_count + 1;
     cpu_read_stat(cpu->curr, total);
 
+    u64 core_freq_sum = 0;
+
     for (u32 i = 0; i < total; i++)
     {
         cpu->usage[i] = cpu_calc_usage(&cpu->prev[i], &cpu->curr[i]);
+
+        if (i > 0)
+        {
+            u32 core_id       = i - 1;
+            cpu->freq_mhz[i]  = cpu_get_core_mhz(core_id);
+            core_freq_sum    += cpu->freq_mhz[i];
+        }
     }
+
+    cpu->freq_mhz[0] = (cpu->core_count > 0) ? (core_freq_sum / cpu->core_count) : 0;
 
     u64 prev_total = cpu->prev[0].user + cpu->prev[0].nice + cpu->prev[0].system +
                      cpu->prev[0].idle + cpu->prev[0].iowait + cpu->prev[0].irq +
@@ -174,7 +218,8 @@ void talos_cpu_destroy(talos_cpu *cpu)
         return;
     }
 
-    cpu->prev  = nullptr;
-    cpu->curr  = nullptr;
-    cpu->usage = nullptr;
+    cpu->prev     = nullptr;
+    cpu->curr     = nullptr;
+    cpu->usage    = nullptr;
+    cpu->freq_mhz = nullptr;
 }

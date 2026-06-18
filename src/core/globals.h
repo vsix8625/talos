@@ -20,6 +20,9 @@ typedef enum talos_rtime_state : u32
     TALOS_RUNTIME_STATE_FOCUSED      = (1 << 4),
     TALOS_RUNTIME_STATE_CPU_GROUPED  = (1 << 5),
     TALOS_RUNTIME_STATE_ABOUT_WINDOW = (1 << 6),
+    TALOS_RUNTIME_STATE_SPLASH       = (1 << 7),
+    TALOS_RUNTIME_STATE_LIMIT_FPS    = (1 << 8),
+    TALOS_RUNTIME_STATE_BOOST_FPS    = (1 << 9),
 } talos_rtime_state;
 
 struct talos_ctx
@@ -29,9 +32,15 @@ struct talos_ctx
 
     u32 width, height;
 
-    u64 event_timeout_ms;
+    f32 dt;
+    u64 last_time;
+
+    u32 target_fps_ms;
 
     talos_rtime_state state;
 };
 
-#define TALOS_EVENT_TIME_OUT_MS 1100
+#define TALOS_TARGET_FPS_60 16
+#define TALOS_TARGET_FPS_30 32
+#define TALOS_TARGET_FPS_15 64
+#define TALOS_TARGET_FPS_5  200

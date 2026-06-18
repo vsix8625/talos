@@ -19,14 +19,14 @@ void talos_input_poll(struct talos_ctx *ctx)
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
             {
-                ctx->event_timeout_ms  = TALOS_EVENT_TIME_OUT_MS;
-                ctx->state            |= TALOS_RUNTIME_STATE_FOCUSED;
+                ctx->target_fps_ms  = TALOS_TARGET_FPS_30;
+                ctx->state         |= TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
             case SDL_EVENT_WINDOW_FOCUS_LOST:
             {
-                ctx->event_timeout_ms  = TALOS_EVENT_TIME_OUT_MS * 2;
-                ctx->state            &= ~TALOS_RUNTIME_STATE_FOCUSED;
+                ctx->target_fps_ms  = TALOS_TARGET_FPS_15;
+                ctx->state         &= ~TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
 
@@ -53,6 +53,8 @@ void talos_input_poll(struct talos_ctx *ctx)
                 switch (event.key.key)
                 {
                     case SDLK_F1: ctx->state ^= TALOS_RUNTIME_STATE_ABOUT_WINDOW; break;
+                    case SDLK_F2: ctx->state ^= TALOS_RUNTIME_STATE_LIMIT_FPS; break;
+                    case SDLK_F3: ctx->state ^= TALOS_RUNTIME_STATE_BOOST_FPS; break;
 
                     case SDLK_F11:
                     {
