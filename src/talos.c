@@ -74,7 +74,10 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
-    init_fancontrol(&g_talos_ctx);
+    if (vx_fs_is_exec("/usr/local/bin/talos_fanctl"))
+    {
+        init_fancontrol(&g_talos_ctx);
+    }
 
     return result;
 }
@@ -147,8 +150,9 @@ static void init_fancontrol(struct talos_ctx *ctx)
 
     i32 count = 0;
 
-    const char *marker       = "RESULT:";
-    char       *result_start = strstr(probe_log.data, marker);
+    const char *marker = "RESULT:";
+
+    char *result_start = strstr(probe_log.data, marker);
 
     if (result_start != nullptr)
     {
