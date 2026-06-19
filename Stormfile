@@ -81,6 +81,22 @@ target gui
         -Iexternal/imgui/backends
 }
 
+target talos_fanctl
+{
+    kind: exec
+    mode: release
+
+    cflags:
+        -std=c17
+        -O2
+        -march=x86-64
+    defines:
+        -DNDEBUG
+
+    sources:
+        tools/talos-fanctl/talos-fanctl.c
+}
+
 target talos
 {
     linker: mold
@@ -90,6 +106,8 @@ target talos
     depends:
         gui
         imgui
+        talos_fanctl
+
 
     lflags:
         -lSDL3

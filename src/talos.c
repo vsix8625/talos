@@ -6,6 +6,7 @@
 #include "vx.h"
 #include "mem.h"
 #include "globals.h"
+#include "vx_process.h"
 
 #include <time.h>
 #include <inttypes.h>
@@ -14,6 +15,12 @@
 struct mem_arena *g_talos_global_arena = nullptr;
 
 struct talos_ctx g_talos_ctx = {0};
+
+//----------------------------------------------------------------------------------------------------
+
+static void init_fancontrol(struct talos_ctx *ctx);
+
+//----------------------------------------------------------------------------------------------------
 
 static i32 talos_init(void)
 {
@@ -67,6 +74,8 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
+    init_fancontrol(&g_talos_ctx);
+
     return result;
 }
 
@@ -94,4 +103,70 @@ i32 main(int argc, char **argv)
 
     talos_quit();
     return result;
+}
+
+static void init_fancontrol(struct talos_ctx *ctx)
+{
+    if (ctx == nullptr)
+    {
+        return;
+    }
+
+    ctx->fan_profile_count = 0;
+    ctx->fan_profile_idx   = 0;
+
+    char probe_log_mem[VX_BUF_SIZE_2048] = {0};
+
+    vx_sbuf probe_log = {
+        .data   = probe_log_mem,
+        .size   = sizeof(probe_log_mem),
+        .offset = 0,
+    };
+
+    char *fanctl_path  = "/usr/local/bin/talos_fanctl";
+    char *probe_argv[] = {"pkexec", fanctl_path, "probe", nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_CAPTURE};
+
+    vx_status status = vx_process_spawn(&proc, probe_argv[0], probe_argv, &cfg);
+    if (status != VX_OK)
+    {
+        vx_errlog("Failed to spawn fan capability probe");
+        return;
+    }
+
+    vx_process_consume_output(&proc, &probe_log);
+    vx_process_wait(&proc);
+
+    if (proc.exit_code != 0)
+    {
+        vx_errlog("Fan capability probe failed");
+        return;
+    }
+
+    i32 count = 0;
+
+    const char *marker       = "RESULT:";
+    char       *result_start = strstr(probe_log.data, marker);
+
+    if (result_start != nullptr)
+    {
+        result_start += strlen(marker);
+        for (size_t i = 0; result_start[i] != '\0' && result_start[i] != '\n' && count < 6; i++)
+        {
+            char c = result_start[i];
+            if (c >= '0' && c <= '5')
+            {
+                ctx->fan_profiles[count++] = c;
+            }
+        }
+    }
+    ctx->fan_profile_count = count;
+
+    if (count > 0)
+    {
+        ctx->state |= TALOS_RUNTIME_STATE_FAN_SUPPORTED;
+        vx_log("Fan control: %d profile(s) detected", count);
+    }
 }

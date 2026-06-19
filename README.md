@@ -24,7 +24,7 @@ Ensure the following core packages are installed via your package manager (e.g.,
 Run:
 
 ```bash
-git clone --recurse-submodules https://github.com/vsix8625/talos
+git clone --recurse-submodules https://github.com/vsix8625/talos.git   
 cd talos
 
 sk init strike

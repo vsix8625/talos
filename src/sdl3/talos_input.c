@@ -2,8 +2,12 @@
 #include "globals.h"
 #include "gui/talos_gui.h"
 #include "vx_io.h"
+#include "vx_util.h"
+#include "vx_process.h"
 
 #include <SDL3/SDL_events.h>
+
+static void handle_fancontrol(struct talos_ctx *ctx);
 
 void talos_input_poll(struct talos_ctx *ctx)
 {
@@ -67,6 +71,8 @@ void talos_input_poll(struct talos_ctx *ctx)
                         break;
                     }
 
+                    case SDLK_F4: handle_fancontrol(ctx); break;
+
                     case SDLK_F11:
                     {
                         u32 flags = SDL_GetWindowFlags(ctx->window);
@@ -90,5 +96,37 @@ void talos_input_poll(struct talos_ctx *ctx)
             }  // key down
             default: break;
         }  // event.type
+    }
+}
+
+static void handle_fancontrol(struct talos_ctx *ctx)
+{
+    if (ctx == nullptr || !(ctx->state & TALOS_RUNTIME_STATE_FAN_SUPPORTED))
+    {
+        return;
+    }
+
+    ctx->fan_profile_idx = (ctx->fan_profile_idx + 1) % ctx->fan_profile_count;
+
+    char mode = ctx->fan_profiles[ctx->fan_profile_idx];
+
+    vx_log("Swithcing mode to: %c", mode);
+
+    char  mode_arg[2]  = {mode, '\0'};
+    char *fanctl_path  = "/usr/local/bin/talos_fanctl";
+    char *spawn_argv[] = {"pkexec", fanctl_path, mode_arg, nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
+
+    if (status == VX_OK)
+    {
+        vx_process_wait(&proc);
+        if (proc.exit_code != 0)
+        {
+            vx_errlog("Failed to spawn talos_fanctl");
+        }
     }
 }

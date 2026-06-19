@@ -36,6 +36,8 @@ void talos_runtime(struct talos_ctx *ctx)
     ctx->target_fps_ms  = TALOS_TARGET_FPS_30;
     ctx->state         |= TALOS_RUNTIME_STATE_FOCUSED;
 
+    ctx->fan_state = TALOS_FAN_STATE_BALANCED;
+
     while (ctx->state & TALOS_RUNTIME_STATE_RUNNING)
     {
         u64 start_ticks = vx_time_ms();
