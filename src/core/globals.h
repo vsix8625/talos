@@ -33,8 +33,14 @@ typedef enum talos_rtime_state : u32
 #define TALOS_FAN_STATE_MASK                                                                       \
     (TALOS_FAN_STATE_BALANCED | TALOS_FAN_STATE_PERFORMANCE | TALOS_FAN_STATE_SILENT)
 
-// add the proper signature
-typedef void (*talos_render_stage_fn)(struct talos_ctx *ctx);
+typedef void (*talos_render_stage_fn)(struct talos_ctx *ctx, void *data);
+
+struct talos_render_stage
+{
+    talos_render_stage_fn fn;
+
+    void *data;
+};
 
 struct talos_ctx
 {

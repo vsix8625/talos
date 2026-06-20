@@ -287,7 +287,12 @@ TALOS_API void talos_gui_pop_font(void)
     PopFont();
 }
 
-TALOS_API void talos_gui_push_style_var_float2(int idx, f32 x, f32 y)
+TALOS_API void talos_gui_push_style_var(i32 idx, f32 var)
+{
+    PushStyleVar(idx, var);
+}
+
+TALOS_API void talos_gui_push_style_var_float2(i32 idx, f32 x, f32 y)
 {
     PushStyleVar(idx, ImVec2(x, y));
 }

@@ -3,8 +3,8 @@ cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
-minor: 5
-patch: 1
+minor: 6
+patch: 0
 
 if(__sk_version_minor__ < 8)
 {

@@ -2,6 +2,7 @@
 
 #include "globals.h"
 #include "config.h"
+#include "glad.h"
 #include "talos_state.h"
 
 #include <SDL3/SDL_timer.h>
@@ -10,6 +11,12 @@
 
 #define TALOS_MAX_CLUSTERS  8
 #define TALOS_MAX_RAW_CORES 256
+
+GLuint g_splash_shader_program_id = 0, g_splash_vao = 0, g_splash_vbo = 0;
+
+static void compile_splash_shader(const char *path);
+static u32  shader_compile(const char *source, u32 type);
+static u32  shader_link(const char *vert_src, const char *frag_src);
 
 static inline vx_vec4f ui_calculate_load_color(f32 fraction)
 {
@@ -22,6 +29,8 @@ static inline vx_vec4f ui_calculate_load_color(f32 fraction)
 
     return color;
 }
+
+#define TALOS_IMGUI_STYLE_VAR_ALPHA 0
 
 void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                talos_state      *state,
@@ -46,6 +55,18 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     {
         lerp_factor = 1.0f;
     }
+
+    static f32 ui_alpha = 0.0f;
+    if (ui_alpha < 1.0f)
+    {
+        ui_alpha += (1.0f - ui_alpha) * lerp_factor;
+        if (ui_alpha > 0.99f)
+        {
+            ui_alpha = 1.0f;
+        }
+    }
+
+    talos_gui_push_style_var(TALOS_IMGUI_STYLE_VAR_ALPHA, ui_alpha);
 
     talos_gui_set_next_window_pos(0.0f, 0.0f);
     talos_gui_set_next_window_size((f32) width, (f32) height);
@@ -662,6 +683,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
         talos_gui_end_popup();
     }
+
+    talos_gui_pop_style_var(1);
 }
 
 void talos_ui_render_about_popup(struct talos_ctx *ctx)
@@ -750,5 +773,256 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         }
 
         talos_gui_end();
+    }
+}
+
+void talos_render_stage_dashboard(struct talos_ctx *ctx, void *data)
+{
+    if (ctx == nullptr || data == nullptr)
+    {
+        return;
+    }
+
+    talos_state *cpu_state = (talos_state *) data;
+
+    u32 ui_idx = atomic_load_explicit(&cpu_state->proc_state.active_idx, memory_order_acquire);
+    talos_proc_list *ui_list = &cpu_state->proc_state.buffers[ui_idx];
+
+    talos_ui_render_dashboard(ctx, cpu_state, ui_list, ctx->width, ctx->height);
+}
+
+typedef struct
+{
+    vx_vec2f position;  // x, y (v_pos)
+    vx_vec4f color;     // r, g, b, a (v_color)
+} talos_vertext;
+
+talos_vertext splash_vertices[] = {
+    {{-1.0f, -1.0f}, {.r = 0.8f, .g = 0.4f, .b = 0.1f, .a = 1.0f}},  // Bottom Left
+    {{1.0f, -1.0f}, {.r = 0.8f, .g = 0.4f, .b = 0.1f, .a = 1.0f}},   // Bottom Right
+    {{1.0f, 1.0f}, {.r = 0.9f, .g = 0.6f, .b = 0.2f, .a = 1.0f}},    // Top Right
+
+    {{-1.0f, -1.0f}, {.r = 0.8f, .g = 0.4f, .b = 0.1f, .a = 1.0f}},  // Bottom Left
+    {{1.0f, 1.0f}, {.r = 0.9f, .g = 0.6f, .b = 0.2f, .a = 1.0f}},    // Top Right
+    {{-1.0f, 1.0f}, {.r = 0.9f, .g = 0.6f, .b = 0.2f, .a = 1.0f}}    // Top Left
+};
+
+void talos_init_splash_geometry(void)
+{
+    compile_splash_shader("assets/shaders/splash.frag");
+
+    glGenVertexArrays(1, &g_splash_vao);
+    glBindVertexArray(g_splash_vao);
+
+    glGenBuffers(1, &g_splash_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, g_splash_vbo);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(splash_vertices), splash_vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,
+                          2,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(talos_vertext),
+                          (void *) offsetof(talos_vertext, position));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1, 4, GL_FLOAT, GL_FALSE, sizeof(talos_vertext), (void *) offsetof(talos_vertext, color));
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+const char *splash_vert_src =
+    "#version 450 core\n"
+    "layout (location = 0) in vec2 a_pos;\n"
+    "layout (location = 1) in vec4 a_color;\n"
+    "\n"
+    "uniform vec2 u_aspect_ratio;\n"
+    "uniform float u_scale;\n"
+    "\n"
+    "out vec2 v_pos;\n"
+    "out vec4 v_color;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    v_pos = a_pos;\n"
+    "    v_color = a_color;\n"
+    "    \n"
+    "    // Scale the position and adjust for screen aspect ratio stretch\n"
+    "    vec2 scaled_pos = a_pos * u_scale * u_aspect_ratio;\n"
+    "    gl_Position = vec4(scaled_pos, 0.0, 1.0);\n"
+    "}\n";
+
+void talos_render_stage_splash(struct talos_ctx *ctx, void *data)
+{
+    if (ctx == nullptr || data == nullptr)
+    {
+        return;
+    }
+
+    f32 *timer = (f32 *) data;
+
+    *timer += ctx->dt;
+
+    const f32 MAX_SPLASH_TIME = 2.0f;
+
+    f32 progress = *timer / MAX_SPLASH_TIME;
+    if (progress > 1.0f)
+    {
+        progress = 1.0f;
+    }
+
+    glUseProgram(g_splash_shader_program_id);
+
+    f32 aspect_x = 1.0f;
+    f32 aspect_y = 1.0f;
+
+    if (ctx->width > ctx->height)
+    {
+        aspect_x = (f32) ctx->height / (f32) ctx->width;
+    }
+    else
+    {
+        aspect_y = (f32) ctx->width / (f32) ctx->height;
+    }
+
+    glUniform2f(
+        glGetUniformLocation(g_splash_shader_program_id, "u_aspect_ratio"), aspect_x, aspect_y);
+    glUniform1f(glGetUniformLocation(g_splash_shader_program_id, "u_scale"), 0.20f);
+
+    glUniform1f(glGetUniformLocation(g_splash_shader_program_id, "u_progress"), progress);
+    glUniform3f(glGetUniformLocation(g_splash_shader_program_id, "u_light_dir"), -0.5f, 0.8f, 1.0f);
+
+    glBindVertexArray(g_splash_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    if (*timer >= MAX_SPLASH_TIME)
+    {
+        ctx->state &= ~TALOS_RUNTIME_STATE_SPLASH;
+    }
+}
+
+static u32 shader_compile(const char *source, u32 type)
+{
+    if (source == nullptr || source[0] == '\0')
+    {
+        return 0;
+    }
+
+    u32 out_shader = glCreateShader(type);
+
+    glShaderSource(out_shader, 1, &source, nullptr);
+    glCompileShader(out_shader);
+
+    i32 compiled;
+    glGetShaderiv(out_shader, GL_COMPILE_STATUS, &compiled);
+
+    if (compiled != GL_TRUE)
+    {
+        i32  log_len = 0;
+        char msg[1024];
+        glGetShaderInfoLog(out_shader, 1024, &log_len, msg);
+        vx_errlog("Shader compile error: %s", msg);
+        return 0;
+    }
+
+    return out_shader;
+}
+
+static u32 shader_link(const char *vert_src, const char *frag_src)
+{
+    u32 vert_shader = shader_compile(vert_src, GL_VERTEX_SHADER);
+    u32 frag_shader = shader_compile(frag_src, GL_FRAGMENT_SHADER);
+
+    if (vert_shader == 0 || frag_shader == 0)
+    {
+        vx_errlog("Failed to compile shaders");
+        return 0;
+    }
+
+    u32 prog = glCreateProgram();
+    glAttachShader(prog, vert_shader);
+    glAttachShader(prog, frag_shader);
+    glLinkProgram(prog);
+
+    i32 prog_linked;
+    glGetProgramiv(prog, GL_LINK_STATUS, &prog_linked);
+
+    if (prog_linked != GL_TRUE)
+    {
+        i32  log_len = 0;
+        char msg[1024];
+        glGetProgramInfoLog(prog, 1024, &log_len, msg);
+        vx_errlog("Failed to link shaders: %s", msg);
+        glDeleteProgram(prog);
+        prog = 0;
+    }
+
+    glDetachShader(prog, vert_shader);
+    glDetachShader(prog, frag_shader);
+    glDeleteShader(vert_shader);
+    glDeleteShader(frag_shader);
+
+    vx_log("Shader linked");
+    return prog;
+}
+
+static void compile_splash_shader(const char *path)
+{
+    vx_sv sv = vx_fs_read(path, nullptr, nullptr);
+
+    if (sv.data == nullptr || sv.len <= 0)
+    {
+        return;
+    }
+
+    g_splash_shader_program_id = shader_link(splash_vert_src, sv.data /* frag */);
+
+    if (g_splash_shader_program_id == 0)
+    {
+        return;
+    }
+
+    glGenVertexArrays(1, &g_splash_vao);
+    glBindVertexArray(g_splash_vao);
+
+    glGenBuffers(1, &g_splash_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, g_splash_vbo);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(splash_vertices), splash_vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,
+                          2,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(talos_vertext),
+                          (void *) offsetof(talos_vertext, position));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1, 4, GL_FLOAT, GL_FALSE, sizeof(talos_vertext), (void *) offsetof(talos_vertext, color));
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void talos_destroy_splash_geometry(void)
+{
+    if (g_splash_vbo)
+    {
+        glDeleteBuffers(1, &g_splash_vbo);
+    }
+    if (g_splash_vao)
+    {
+        glDeleteVertexArrays(1, &g_splash_vao);
+    }
+    if (g_splash_shader_program_id)
+    {
+        glDeleteProgram(g_splash_shader_program_id);
     }
 }

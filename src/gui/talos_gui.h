@@ -181,6 +181,7 @@ TALOS_API
     void talos_gui_push_font_small(void);
     void talos_gui_pop_font(void);
 
+    void talos_gui_push_style_var(int idx, float var);
     void talos_gui_push_style_var_float2(int idx, float x, float y);
     void talos_gui_pop_style_var(int count);
 
