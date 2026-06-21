@@ -14,7 +14,7 @@
 
 GLuint g_splash_shader_program_id = 0, g_splash_vao = 0, g_splash_vbo = 0;
 
-static void compile_splash_shader(const char *path);
+static void compile_splash_shader(void);
 static u32  shader_compile(const char *source, u32 type);
 static u32  shader_link(const char *vert_src, const char *frag_src);
 
@@ -102,7 +102,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     char header_buf[VX_BUF_SIZE_128];
     snprintf(header_buf,
              sizeof(header_buf),
-             "Talos System Monitor %s | %s | %s Mode | [F1: About]",
+             "Talos %s | %s | %s Mode | [F1: About]",
              TALOS_VERSION_STRING,
              state->cpu.model,
              fps_mode);
@@ -807,9 +807,14 @@ talos_vertext splash_vertices[] = {
     {{-1.0f, 1.0f}, {.r = 0.9f, .g = 0.6f, .b = 0.2f, .a = 1.0f}}    // Top Left
 };
 
+const char g_splash_shader_src[] = {
+#embed "../../assets/shaders/splash.frag"
+    ,
+    0};
+
 void talos_init_splash_geometry(void)
 {
-    compile_splash_shader("assets/shaders/splash.frag");
+    compile_splash_shader();
 
     glGenVertexArrays(1, &g_splash_vao);
     glBindVertexArray(g_splash_vao);
@@ -967,20 +972,13 @@ static u32 shader_link(const char *vert_src, const char *frag_src)
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);
 
-    vx_log("Shader linked");
+    vx_dbglog("Shader linked");
     return prog;
 }
 
-static void compile_splash_shader(const char *path)
+static void compile_splash_shader(void)
 {
-    vx_sv sv = vx_fs_read(path, nullptr, nullptr);
-
-    if (sv.data == nullptr || sv.len <= 0)
-    {
-        return;
-    }
-
-    g_splash_shader_program_id = shader_link(splash_vert_src, sv.data /* frag */);
+    g_splash_shader_program_id = shader_link(splash_vert_src, g_splash_shader_src);
 
     if (g_splash_shader_program_id == 0)
     {

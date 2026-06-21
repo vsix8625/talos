@@ -16,10 +16,10 @@ void main()
     
     vec3 base_color = v_color.rgb;
     if (v_pos.y > fill_line) {
-        base_color *= 0.2; // Unfilled shell look
+        base_color *= 0.2;
     } else {
         if (v_pos.y > fill_line - 0.05) {
-            base_color += vec3(0.4, 0.2, 0.0); // White-hot glow line
+            base_color += vec3(0.4, 0.2, 0.0);
         }
     }
 

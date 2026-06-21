@@ -2,6 +2,11 @@
 
 A native Linux system monitor.  
 
+<p align="center">
+  <img src="assets/images/talos0.png" width="49%">
+  <img src="assets/images/talos1.png" width="49%">
+</p>
+
 ## Prerequisites
 
 ### 1. Toolchains & Compilers
