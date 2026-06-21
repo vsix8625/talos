@@ -69,3 +69,5 @@ struct talos_ctx
 #define TALOS_TARGET_FPS_30 32
 #define TALOS_TARGET_FPS_15 64
 #define TALOS_TARGET_FPS_5  200
+
+#define TALOS_HISTORY_COUNT 60

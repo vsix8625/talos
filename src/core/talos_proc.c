@@ -232,6 +232,9 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
         {
             if (prev_list->procs[i].pid == pid)
             {
+                memcpy(p->cpu_history, prev_list->procs[i].cpu_history, sizeof(p->cpu_history));
+                p->history_head = prev_list->procs[i].history_head;
+
                 u64 current_ticks  = p->utime + p->stime;
                 u64 previous_ticks = prev_list->procs[i].utime + prev_list->procs[i].stime;
 
@@ -244,6 +247,9 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
                     // SCALE TO PER-CORE MODE:
                     // p->cpu_usage *= 4.0f;
                 }
+
+                p->cpu_history[p->history_head] = p->cpu_usage;
+                p->history_head                 = (p->history_head + 1) % 60;
 
                 break;
             }

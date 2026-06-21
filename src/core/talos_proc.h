@@ -13,6 +13,9 @@ typedef struct
     u64  utime;
     u64  stime;
     f32  cpu_usage;
+
+    f32 cpu_history[60];
+    i32 history_head;
 } talos_process;
 
 typedef enum

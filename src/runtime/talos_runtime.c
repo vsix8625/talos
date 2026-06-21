@@ -77,6 +77,7 @@ void talos_runtime(struct talos_ctx *ctx)
         {
             talos_ui_render_about_popup(ctx);
         }
+
         // --------------------------------------------
 
         talos_gui_render_frame();

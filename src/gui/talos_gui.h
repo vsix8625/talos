@@ -234,6 +234,16 @@ TALOS_API
     void talos_gui_text_disabled(const char *text);
     void talos_gui_text_link(const char *label, const char *url);
 
+    void talos_gui_plot_lines(const char *label,
+                              float (*getter)(void *data, int idx),
+                              void       *data,
+                              int         values_count,
+                              const char *overlay_text,
+                              float       scale_min,
+                              float       scale_max,
+                              float       graph_width,
+                              float       graph_height);
+
 #ifdef __cplusplus
 }
 #endif

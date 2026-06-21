@@ -88,7 +88,7 @@ void talos_input_poll(struct talos_ctx *ctx)
                     }
 
                     case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
-
+                    case SDLK_Q: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
                     case SDLK_G: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
 
                     default: break;

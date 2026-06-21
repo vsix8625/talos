@@ -38,8 +38,6 @@ static int find_universal_pwm_path(char *dest_path, size_t max_len)
     return -1;
 }
 
-/* Single-byte write, no newline, no stdio buffering quirks.
- * Returns 0 on success, -1 on failure (errno set). */
 static int write_pwm_value(const char *path, char value)
 {
     int fd = open(path, O_WRONLY);
