@@ -10,32 +10,45 @@ echo "========================================="
 echo "   Talos System Monitor - Installer      "
 echo "========================================="
 
-HELPER_SOURCE="crater/talos_fanctl/release/bin/talos_fanctl"
-HELPER_DEST="/usr/local/bin/talos_fanctl"
-POLICY_DEST="/usr/share/polkit-1/actions/org.talos.pkexec.fancontrol.policy"
+FAN_SOURCE="crater/talos_fanctl/release/bin/talos_fanctl"
+FAN_DEST="/usr/local/bin/talos_fanctl"
+FAN_POLICY="/usr/share/polkit-1/actions/org.talos.pkexec.fancontrol.policy"
 
-if [ ! -f "$HELPER_SOURCE" ]; then
-  echo "Error: Compiled binary not found at $HELPER_SOURCE"
+POWER_SOURCE="crater/talos_power/release/bin/talos_power"
+POWER_DEST="/usr/local/bin/talos_power"
+POWER_POLICY="/usr/share/polkit-1/actions/org.talos.pkexec.power.policy"
+
+if [ ! -f "$FAN_SOURCE" ]; then
+  echo "Error: Compiled binary not found at $FAN_SOURCE"
   echo "Did you build with 'sk' first?"
   exit 1
 fi
 
-echo "-> Installing talos_fanctl helper to $HELPER_DEST..."
-cp "$HELPER_SOURCE" "$HELPER_DEST"
-chmod 755 "$HELPER_DEST"
-chown root:root "$HELPER_DEST"
+if [ ! -f "$POWER_SOURCE" ]; then
+  echo "Error: Compiled binary not found at $POWER_SOURCE"
+  echo "Did you build with 'sk' first?"
+  exit 1
+fi
 
-echo "-> Deploying Polkit security policy..."
+echo "-> Installing talos_fanctl helper to $FAN_DEST..."
+cp "$FAN_SOURCE" "$FAN_DEST"
+chmod 755 "$FAN_DEST"
+chown root:root "$FAN_DEST"
 
-cat <<EOF > "$POLICY_DEST"
+echo "-> Installing talos_power helper to $POWER_DEST..."
+cp "$POWER_SOURCE" "$POWER_DEST"
+chmod 755 "$POWER_DEST"
+chown root:root "$POWER_DEST"
+
+echo "-> Deploying Polkit security policies..."
+
+cat <<EOF > "$FAN_POLICY"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "https://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
-
 <policyconfig>
         <vendor>Talos Project</vendor>
         <vendor_url>https://github.com/vsix8625/talos.git</vendor_url>
-
         <action id="org.talos.pkexec.fancontrol">
                 <description>Allow Talos to change fan profiles</description>
                 <message>Authentication is required for Talos to adjust system fan profiles.</message>
@@ -44,13 +57,36 @@ cat <<EOF > "$POLICY_DEST"
                         <allow_inactive>no</allow_inactive>
                         <allow_active>yes</allow_active> 
                 </defaults>
-                <annotate key="org.freedesktop.policykit.exec.path">$HELPER_DEST</annotate>
+                <annotate key="org.freedesktop.policykit.exec.path">$FAN_DEST</annotate>
         </action>
 </policyconfig>
 EOF
 
-chmod 644 "$POLICY_DEST"
-chown root:root "$POLICY_DEST"
+chmod 644 "$FAN_POLICY"
+chown root:root "$FAN_POLICY"
+
+cat <<EOF > "$POWER_POLICY"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "https://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+        <vendor>Talos Project</vendor>
+        <vendor_url>https://github.com/vsix8625/talos.git</vendor_url>
+        <action id="org.talos.pkexec.power">
+                <description>Allow Talos to shutdown or reboot the machine</description>
+                <message>Authentication is required for Talos to alter machine power states.</message>
+                <defaults>
+                        <allow_any>no</allow_any>
+                        <allow_inactive>no</allow_inactive>
+                        <allow_active>yes</allow_active> 
+                </defaults>
+                <annotate key="org.freedesktop.policykit.exec.path">$POWER_DEST</annotate>
+        </action>
+</policyconfig>
+EOF
+
+chmod 644 "$POWER_POLICY"
+chown root:root "$POWER_POLICY"
 
 echo "========================================="
 echo " Installation successful!"

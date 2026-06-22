@@ -6,9 +6,18 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "Removing Talos system components..."
+echo "========================================="
+echo " Removing Talos system components...    "
+echo "========================================="
 
+echo "-> Removing binaries from /usr/local/bin/..."
 rm -f /usr/local/bin/talos_fanctl
-rm -f /usr/share/polkit-1/actions/org.talos.pkexec.fancontrol.policy
+rm -f /usr/local/bin/talos_power
 
-echo "Cleanup complete!"
+echo "-> Purging Polkit policies..."
+rm -f /usr/share/polkit-1/actions/org.talos.pkexec.fancontrol.policy
+rm -f /usr/share/polkit-1/actions/org.talos.pkexec.power.policy
+
+echo "========================================="
+echo " Cleanup complete!"
+echo "========================================="

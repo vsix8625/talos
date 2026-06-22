@@ -55,8 +55,8 @@ void talos_runtime(struct talos_ctx *ctx)
     {
         u64 start_ticks = vx_time_ms();
 
-        // For smoother bars we need higher fps and more cpu usage
-        // SDL_WaitEventTimeout(nullptr, ctx->event_timeout_ms);
+        // TODO: testing
+        SDL_WaitEventTimeout(nullptr, 10);
         talos_input_poll(ctx);
 
         u64 now = vx_time_ms();

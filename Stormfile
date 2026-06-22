@@ -2,8 +2,8 @@ cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
-minor: 6
-patch: 1
+minor: 8
+patch: 0
 
 if(__sk_version_minor__ < 8)
 {
@@ -96,6 +96,22 @@ target talos_fanctl
         tools/talos-fanctl/talos-fanctl.c
 }
 
+target talos_power
+{
+    kind: exec
+    mode: release
+
+    cflags:
+        -std=c17
+        -O2
+        -march=x86-64
+    defines:
+        -DNDEBUG
+
+    sources:
+        tools/talos-power/talos-power.c
+}
+
 target talos
 {
     linker: mold
@@ -106,6 +122,7 @@ target talos
         gui
         imgui
         talos_fanctl
+        talos_power
 
 
     lflags:

@@ -100,8 +100,10 @@ typedef enum
 
 typedef enum
 {
-    TALOS_GUI_COLOR_TEXT      = 0,
-    TALOS_GUI_COLOR_HISTOGRAM = 43,
+    TALOS_GUI_COLOR_TEXT           = 0,
+    TALOS_GUI_COLOR_BUTTON         = 21,
+    TALOS_GUI_COLOR_BUTTON_HOVERED = 22,
+    TALOS_GUI_COLOR_HISTOGRAM      = 43,
 } talos_gui_color_idx;
 
 typedef enum talos_imgui_key
@@ -159,6 +161,8 @@ TALOS_API
 
     void talos_gui_text(const char *text);
     int  talos_gui_button(const char *label);
+    int  talos_gui_button_xy(const char *label, float x, float y);
+    int  talos_gui_small_button(const char *label);
     int  talos_gui_checkbox(const char *label, int *v);
     int  talos_gui_slider_float(const char *label, float *v, float min, float max);
     int  talos_gui_input_text(const char *label, char *buf, size_t buf_size);

@@ -3,6 +3,7 @@
 #include "globals.h"
 #include "config.h"
 #include "glad.h"
+#include "talos_input.h"
 #include "talos_state.h"
 
 #include <SDL3/SDL_timer.h>
@@ -690,8 +691,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_end();
 
     // Bottom right card
+    f32 power_card_height   = 70.0f;
+    f32 thermal_card_height = half_height - power_card_height - padding;
+
     talos_gui_set_next_window_pos(right_column_x, 60.0f + half_height + padding);
-    talos_gui_set_next_window_size(card_width, half_height);
+    talos_gui_set_next_window_size(card_width, thermal_card_height);
 
     if (talos_gui_begin("ThermalCardWrapper", nullptr, card_flags))
     {
@@ -787,8 +791,99 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     talos_gui_end();
     talos_gui_pop_font();
 
+    // POWER CONTROL CARD
+    f32 power_card_y = 60.0f + half_height + padding + thermal_card_height + padding;
+
+    talos_gui_set_next_window_pos(right_column_x, power_card_y);
+    talos_gui_set_next_window_size(card_width, power_card_height);
+
+    static bool show_shutdown_confirm = false;
+    static bool show_reboot_confirm   = false;
+
+    if (talos_gui_begin("PowerControlCardWrapper", nullptr, card_flags))
+    {
+        f32 button_width = (card_width - 15.0f) * 0.5f;
+
+        vx_vec4f red_button = {.r = 0.75f, .g = 0.15f, .b = 0.15f, .a = 1.0f};
+        vx_vec4f red_hover  = {.r = 0.90f, .g = 0.20f, .b = 0.20f, .a = 1.0f};
+
+        talos_gui_push_style_color(TALOS_GUI_COLOR_BUTTON, red_button);
+        talos_gui_push_style_color(TALOS_GUI_COLOR_BUTTON_HOVERED, red_hover);
+
+        if (talos_gui_button_xy("Shutdown", button_width, 0.0f))
+        {
+            show_shutdown_confirm = true;
+        }
+
+        talos_gui_pop_style_color(2);
+
+        talos_gui_same_line();
+
+        if (talos_gui_button_xy("Reboot", button_width, 0.0f))
+        {
+            show_reboot_confirm = true;
+        }
+    }
+    talos_gui_end();  // power control card end
+
     // Close the master display window frame container context
     talos_gui_end();
+
+    // CONTEXT POPUP CONFIRMATIONS
+    if (show_shutdown_confirm)
+    {
+        talos_gui_open_popup("Confirm Shutdown", 0);
+    }
+
+    if (show_reboot_confirm)
+    {
+        talos_gui_open_popup("Confirm Reboot", 0);
+    }
+
+    if (talos_gui_begin_popup_modal(
+            "Confirm Shutdown", nullptr, TALOS_GUI_WINDOW_ALWAYS_AUTO_RESIZE))
+    {
+        talos_gui_text("Are you sure you want to turn off the machine?");
+        talos_gui_spacing();
+
+        if (talos_gui_button_xy("Yes", 120.0f, 0.0f))
+        {
+            talos_system_shutdown();
+            show_shutdown_confirm = false;
+            talos_gui_close_current_popup();
+        }
+
+        talos_gui_same_line();
+
+        if (talos_gui_button_xy("Cancel", 120.0f, 0.0f))
+        {
+            show_shutdown_confirm = false;
+            talos_gui_close_current_popup();
+        }
+        talos_gui_end_popup();
+    }
+
+    if (talos_gui_begin_popup_modal("Confirm Reboot", nullptr, TALOS_GUI_WINDOW_ALWAYS_AUTO_RESIZE))
+    {
+        talos_gui_text("Are you sure you want to restart the machine?");
+        talos_gui_spacing();
+
+        if (talos_gui_button_xy("Yes", 120.0f, 0.0f))
+        {
+            talos_system_reboot();
+            show_reboot_confirm = false;
+            talos_gui_close_current_popup();
+        }
+
+        talos_gui_same_line();
+
+        if (talos_gui_button_xy("Cancel", 120.0f, 0.0f))
+        {
+            show_reboot_confirm = false;
+            talos_gui_close_current_popup();
+        }
+        talos_gui_end_popup();
+    }
 
     i32 popup_flags = TALOS_GUI_WINDOW_ALWAYS_AUTO_RESIZE;
 
@@ -898,6 +993,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     talos_gui_pop_style_var(1);
 }
+
+// DASHBOARD END
 
 void talos_ui_render_about_popup(struct talos_ctx *ctx)
 {
@@ -1084,7 +1181,7 @@ void talos_render_stage_splash(struct talos_ctx *ctx, void *data)
 
     *timer += ctx->dt;
 
-    const f32 MAX_SPLASH_TIME = 2.0f;
+    const f32 MAX_SPLASH_TIME = 1.8f;
 
     f32 progress = *timer / MAX_SPLASH_TIME;
     if (progress > 1.0f)

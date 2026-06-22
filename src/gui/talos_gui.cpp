@@ -179,6 +179,16 @@ TALOS_API int talos_gui_button(const char *label)
     return Button(label);
 }
 
+TALOS_API int talos_gui_button_xy(const char *label, float x, float y)
+{
+    return Button(label, (ImVec2) {x, y});
+}
+
+TALOS_API int talos_gui_small_button(const char *label)
+{
+    return SmallButton(label);
+}
+
 TALOS_API int talos_gui_checkbox(const char *label, int *v)
 {
     bool b = (bool) *v;

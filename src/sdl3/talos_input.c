@@ -27,9 +27,10 @@ void talos_input_poll(struct talos_ctx *ctx)
                 ctx->state         |= TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
+
             case SDL_EVENT_WINDOW_FOCUS_LOST:
             {
-                ctx->target_fps_ms  = TALOS_TARGET_FPS_15;
+                ctx->target_fps_ms  = TALOS_TARGET_FPS_5;
                 ctx->state         &= ~TALOS_RUNTIME_STATE_FOCUSED;
                 break;
             }
@@ -127,6 +128,46 @@ static void handle_fancontrol(struct talos_ctx *ctx)
         if (proc.exit_code != 0)
         {
             vx_errlog("Failed to spawn talos_fanctl");
+        }
+    }
+}
+
+void talos_system_shutdown(void)
+{
+    char *power_path   = "/usr/local/bin/talos_power";
+    char *spawn_argv[] = {"pkexec", power_path, "poweroff", nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
+
+    if (status == VX_OK)
+    {
+        vx_process_wait(&proc);
+        if (proc.exit_code != 0)
+        {
+            vx_errlog("Failed to execute talos_power poweroff");
+        }
+    }
+}
+
+void talos_system_reboot(void)
+{
+    char *power_path   = "/usr/local/bin/talos_power";
+    char *spawn_argv[] = {"pkexec", power_path, "reboot", nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
+
+    if (status == VX_OK)
+    {
+        vx_process_wait(&proc);
+        if (proc.exit_code != 0)
+        {
+            vx_errlog("Failed to execute talos_power reboot");
         }
     }
 }
