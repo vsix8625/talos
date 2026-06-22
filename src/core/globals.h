@@ -24,6 +24,9 @@ typedef enum talos_rtime_state : u32
     TALOS_RUNTIME_STATE_LIMIT_FPS     = (1 << 8),
     TALOS_RUNTIME_STATE_BOOST_FPS     = (1 << 9),
     TALOS_RUNTIME_STATE_FAN_SUPPORTED = (1 << 10),
+    TALOS_RUNTIME_STATE_GOV_LIMIT     = (1 << 11),
+    TALOS_RUNTIME_STATE_GOV_PERF      = (1 << 12),
+    TALOS_RUNTIME_STATE_GOV_NORM      = (1 << 13),
 } talos_rtime_state;
 
 #define TALOS_FAN_STATE_BALANCED    (1 << 0)

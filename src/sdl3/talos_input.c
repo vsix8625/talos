@@ -10,6 +10,7 @@
 #include <SDL3/SDL_events.h>
 
 static void handle_fancontrol(struct talos_ctx *ctx);
+static void handle_governor(struct talos_ctx *ctx);
 
 void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
 {
@@ -72,6 +73,7 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                         ctx->state ^= TALOS_RUNTIME_STATE_LIMIT_FPS;
                         break;
                     }
+
                     case SDLK_F3:
                     {
                         ctx->state &= ~TALOS_RUNTIME_STATE_LIMIT_FPS;
@@ -80,6 +82,12 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                     }
 
                     case SDLK_F4: handle_fancontrol(ctx); break;
+
+                    case SDLK_F5:
+                    {
+                        handle_governor(ctx);
+                        break;
+                    }
 
                     case SDLK_F11:
                     {
@@ -194,5 +202,62 @@ void talos_system_reboot(void)
         {
             vx_errlog("Failed to execute talos_power reboot");
         }
+    }
+}
+
+static void system_set_governor(const char *gov)
+{
+    if (gov == nullptr)
+    {
+        return;
+    }
+
+    char *power_path   = "/usr/local/bin/talos_power";
+    char *spawn_argv[] = {"pkexec", power_path, "governor", (char *) gov, nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    if (!vx_fs_is_exec(power_path))
+    {
+        vx_errlog("Talos power control helper is not installed at '%s'", power_path);
+        return;
+    }
+
+    vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
+    if (status == VX_OK)
+    {
+        vx_process_wait(&proc);
+        if (proc.exit_code != 0)
+        {
+            vx_errlog("Failed to set governor to '%s'", gov);
+        }
+    }
+}
+
+static void handle_governor(struct talos_ctx *ctx)
+{
+    if (ctx == nullptr)
+    {
+        return;
+    }
+
+    if (ctx->state & TALOS_RUNTIME_STATE_GOV_NORM)
+    {
+        ctx->state &= ~TALOS_RUNTIME_STATE_GOV_NORM;
+        ctx->state |= TALOS_RUNTIME_STATE_GOV_PERF;
+        system_set_governor("performance");
+    }
+    else if (ctx->state & TALOS_RUNTIME_STATE_GOV_PERF)
+    {
+        ctx->state &= ~TALOS_RUNTIME_STATE_GOV_PERF;
+        ctx->state |= TALOS_RUNTIME_STATE_GOV_LIMIT;
+        system_set_governor("powersave");
+    }
+    else
+    {
+        ctx->state &= ~TALOS_RUNTIME_STATE_GOV_LIMIT;
+        ctx->state |= TALOS_RUNTIME_STATE_GOV_NORM;
+        system_set_governor("schedutil");
     }
 }

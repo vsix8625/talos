@@ -2,7 +2,7 @@ cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
-minor: 8
+minor: 9
 patch: 1
 
 if(__sk_version_minor__ < 8)
