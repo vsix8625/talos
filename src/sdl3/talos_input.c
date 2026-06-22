@@ -1,6 +1,7 @@
 #include "talos_input.h"
 #include "globals.h"
 #include "gui/talos_gui.h"
+#include "vx_fs.h"
 #include "vx_io.h"
 #include "vx_util.h"
 #include "vx_process.h"
@@ -140,6 +141,12 @@ void talos_system_shutdown(void)
     struct vx_process  proc = {0};
     struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
 
+    if (!vx_fs_is_exec(power_path))
+    {
+        vx_errlog("Talos power control helper is not installed at '%s'", power_path);
+        return;
+    }
+
     vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
 
     if (status == VX_OK)
@@ -159,6 +166,12 @@ void talos_system_reboot(void)
 
     struct vx_process  proc = {0};
     struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    if (!vx_fs_is_exec(power_path))
+    {
+        vx_errlog("Talos power control helper is not installed at '%s'", power_path);
+        return;
+    }
 
     vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
 

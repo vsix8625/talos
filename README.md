@@ -37,32 +37,31 @@ cd talos
 sk init strike
 ```
 
-### Fan Control (optional)
+## Privileged Hardware Helpers (Optional)
 
-Talos can adjust fan profiles on supported hardware via a privileged
-helper binary. This requires an extra install step beyond the normal
-build, since changing fan settings needs elevated permissions.
+Talos can adjust hardware profiles and trigger system power actions via dedicated, lightweight auxiliary binaries. 
+Because these operations require elevated permissions, 
+an extra installation step is required to deploy them alongside Polkit policies.
 
-1. Build as usual
-2. Install the fan control helper and its Polkit policy:
+Build the project as usual via sk.
+Install the secure helper utilities and their corresponding Polkit policies:
 
 ```bash
 sudo ./scripts/install.sh
 ```
 
-3. Press F4 in Talos to cycle fan profiles.
+The script configures and installs:
 
-Talos automatically probes your hardware at startup to detect which
-fan modes are actually supported — not all systems expose controllable
-fan profiles, in which case the fan control feature will be silently
-disabled.
+* `talos_fanctl`: Handles adjustments to system fan profiles. Pressing F4 in the GUI cycles through available profiles.  
+Talos automatically checks for driver compatibility at startup and disables the toggle if unsupported.
+* `talos_power`: Connects directly to the Linux reboot() syscall interfaces using native magic tokens to execute instant machine shutdown or reboot sequences cleanly from the interface.
 
-To remove the helper and policy:
+To completely wipe these binaries and revoke their active Polkit security permissions from the system:
 
 ```bash
 sudo ./scripts/uninstall.sh
 ```
 
-**Note:** fan control support varies significantly by hardware/driver
-(tested working: HP `hp-wmi` with 2 of 6 possible modes). Behavior
-on other vendors/chips is unverified.
+**Note:** Fan control profile availability depends significantly on vendor-specific driver exposure (tested working: HP `hp-wmi` exposing 2 of 6 platform states). 
+System power controls triggered via `talos_power` are universally supported across standard Linux environments.
+
