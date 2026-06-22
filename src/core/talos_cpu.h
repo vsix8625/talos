@@ -17,7 +17,7 @@ typedef struct
     u64 steal;
 } talos_cpu_stat;
 
-typedef struct
+typedef struct talos_cpu_s
 {
     u32             core_count;
     talos_cpu_stat *prev;   // [core_count + 1] +1 for aggregate
@@ -28,6 +28,7 @@ typedef struct
     i32             freq_id_count;
     char            model[TALOS_CPU_NAME_MAX];
     u64             total_ticks_delta;
+    char            governor[VX_BUF_SIZE_32];
 } talos_cpu;
 
 bool talos_cpu_init(talos_cpu *cpu);

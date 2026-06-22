@@ -8,6 +8,43 @@
 #define PROC_STAT    "/proc/stat"
 #define PROC_CPUINFO "/proc/cpuinfo"
 
+static void cpu_read_governor(talos_cpu *cpu)
+{
+    if (cpu == nullptr)
+    {
+        return;
+    }
+
+    char path[VX_BUF_SIZE_64];
+    snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+
+    i32 fd = open(path, O_RDONLY);
+    if (fd < 0)
+    {
+        snprintf(cpu->governor, sizeof(cpu->governor), "unknown");
+        return;
+    }
+
+    char    buf[VX_BUF_SIZE_32];
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0)
+    {
+        snprintf(cpu->governor, sizeof(cpu->governor), "unknown");
+        return;
+    }
+
+    buf[n] = '\0';
+
+    // strip newline
+    char *nl = strchr(buf, '\n');
+    if (nl)
+    {
+        *nl = '\0';
+    }
+    snprintf(cpu->governor, sizeof(cpu->governor), "%s", buf);
+}
+
 static u64 cpu_get_core_mhz_fd(i32 fd)
 {
     if (fd < 0)
@@ -227,6 +264,8 @@ void talos_cpu_update(talos_cpu *cpu)
                      cpu->curr[0].softirq + cpu->curr[0].steal;
 
     cpu->total_ticks_delta = curr_total - prev_total;
+
+    cpu_read_governor(cpu);
 }
 
 void talos_cpu_destroy(talos_cpu *cpu)

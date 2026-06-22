@@ -173,8 +173,9 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         {
             snprintf(cpu_header_buf,
                      sizeof(cpu_header_buf),
-                     "CPU %.0f MHz | Uptime: %02" PRIu64 ":%02" PRIu64 ":%02" PRIu64,
+                     "CPU %.0f MHz | %s | Uptime: %02" PRIu64 ":%02" PRIu64 ":%02" PRIu64,
                      visual_mhz,
+                     state->cpu.governor,
                      hours,
                      minutes,
                      seconds);

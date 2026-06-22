@@ -6,6 +6,7 @@
 #include "talos_update.h"
 #include "talos_temp.h"
 #include "talos_input.h"
+#include "vx_process.h"
 #include "vx_time.h"
 #include "glad.h"
 
@@ -13,6 +14,7 @@
 #include <SDL3/SDL_timer.h>
 
 static void render_stage_dashboard(struct talos_ctx *ctx, void *data);
+static void system_set_governor(const char *gov);
 
 void talos_runtime(struct talos_ctx *ctx)
 {
@@ -50,6 +52,8 @@ void talos_runtime(struct talos_ctx *ctx)
                                               .data = &splash_timer};
 
     ctx->render_dispatch = active_stage.fn;
+
+    talos_rtime_state prev_state = ctx->state;
 
     while (ctx->state & TALOS_RUNTIME_STATE_RUNNING)
     {
@@ -97,14 +101,26 @@ void talos_runtime(struct talos_ctx *ctx)
         if (ctx->state & TALOS_RUNTIME_STATE_BOOST_FPS)
         {
             ctx->target_fps_ms = TALOS_TARGET_FPS_60;
+            if (!(prev_state & TALOS_RUNTIME_STATE_BOOST_FPS))
+            {
+                system_set_governor("performance");
+            }
         }
         else if (ctx->state & TALOS_RUNTIME_STATE_LIMIT_FPS)
         {
             ctx->target_fps_ms = TALOS_TARGET_FPS_5;
+            if (!(prev_state & TALOS_RUNTIME_STATE_LIMIT_FPS))
+            {
+                system_set_governor("powersave");
+            }
         }
         else
         {
             ctx->target_fps_ms = TALOS_TARGET_FPS_30;
+            if (prev_state & (TALOS_RUNTIME_STATE_BOOST_FPS | TALOS_RUNTIME_STATE_LIMIT_FPS))
+            {
+                system_set_governor("schedutil");
+            }
         }
 
         u64 frame_ticks = vx_time_ms() - start_ticks;
@@ -112,6 +128,8 @@ void talos_runtime(struct talos_ctx *ctx)
         {
             SDL_Delay(ctx->target_fps_ms - (u32) frame_ticks);
         }
+
+        prev_state = ctx->state;
     }
 
     talos_cpu_destroy(&cpu_state.cpu);
@@ -131,4 +149,34 @@ static void render_stage_dashboard(struct talos_ctx *ctx, void *data)
     talos_proc_list *ui_list = &cpu_state->proc_state.buffers[ui_idx];
 
     talos_ui_render_dashboard(ctx, cpu_state, ui_list, ctx->width, ctx->height);
+}
+
+static void system_set_governor(const char *gov)
+{
+    if (gov == nullptr)
+    {
+        return;
+    }
+
+    char *power_path   = "/usr/local/bin/talos_power";
+    char *spawn_argv[] = {"pkexec", power_path, "governor", (char *) gov, nullptr};
+
+    struct vx_process  proc = {0};
+    struct vx_proc_cfg cfg  = {.flags = VX_PROCESS_FLAGS_BG};
+
+    if (!vx_fs_is_exec(power_path))
+    {
+        vx_errlog("Talos power control helper is not installed at '%s'", power_path);
+        return;
+    }
+
+    vx_status status = vx_process_spawn(&proc, spawn_argv[0], spawn_argv, &cfg);
+    if (status == VX_OK)
+    {
+        vx_process_wait(&proc);
+        if (proc.exit_code != 0)
+        {
+            vx_errlog("Failed to set governor to '%s'", gov);
+        }
+    }
 }
