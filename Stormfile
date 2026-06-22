@@ -164,6 +164,18 @@ target talos
     }
 
 
+    if(rel)
+    {
+        cflags::
+            -flto
+            -ffunction-sections
+            -fdata-sections
+        lflags::
+            -flto
+            -Wl,--gc-sections
+            -Wl,-O1
+    }
+
     exclude::
         src/gui/
     sources:

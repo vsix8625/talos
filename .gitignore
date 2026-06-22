@@ -4,6 +4,7 @@ compile_commands.json
 .clang-format
 
 test/
+releases/
 
 # Prerequisites
 *.d
