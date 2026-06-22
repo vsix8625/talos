@@ -2,41 +2,41 @@
 #include "globals.h"
 #include "mem_arena.h"
 #include "vx.h"
+#include <fcntl.h>
 #include <inttypes.h>
 
 #define PROC_STAT    "/proc/stat"
 #define PROC_CPUINFO "/proc/cpuinfo"
 
-static u64 cpu_get_core_mhz(u32 core_id)
+static u64 cpu_get_core_mhz_fd(i32 fd)
 {
-    char path[VX_BUF_SIZE_64];
+    if (fd < 0)
+    {
+        return 0;
+    }
+
     char buf[VX_BUF_SIZE_32];
-    u64  mhz = 0;
 
-    snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq", core_id);
-
-    FILE *fp = fopen(path, "r");
-    if (fp == nullptr)
+    if (lseek(fd, 0, SEEK_SET) < 0)
     {
-        snprintf(
-            path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/cpuinfo_cur_freq", core_id);
-
-        fp = fopen(path, "r");
+        return 0;
     }
 
-    if (fp != nullptr)
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    if (n <= 0)
     {
-        u64 khz = 0;
-        if (fgets(buf, sizeof(buf), fp) != nullptr)
-        {
-            if (sscanf(buf, "%" SCNu64, &khz) == 1)
-            {
-                mhz = khz / 1000;
-            }
-        }
-        fclose(fp);
+        return 0;
     }
-    return mhz;
+
+    buf[n] = '\0';
+
+    u64 khz = 0;
+    if (sscanf(buf, "%" SCNu64, &khz) != 1)
+    {
+        return 0;
+    }
+
+    return khz / 1000;
 }
 
 static bool cpu_read_stat(talos_cpu_stat *stats, u32 count)
@@ -48,7 +48,7 @@ static bool cpu_read_stat(talos_cpu_stat *stats, u32 count)
         return false;
     }
 
-    char line[256];
+    char line[VX_BUF_SIZE_256];
     u32  parsed = 0;
 
     while (fgets(line, sizeof(line), fp) && parsed <= count)
@@ -155,6 +155,10 @@ bool talos_cpu_init(talos_cpu *cpu)
     cpu->curr     = mem_arena_zalloc(g_talos_global_arena, total * sizeof(talos_cpu_stat));
     cpu->usage    = mem_arena_zalloc(g_talos_global_arena, total * sizeof(f32));
     cpu->freq_mhz = mem_arena_zalloc(g_talos_global_arena, total * sizeof(u64));
+    cpu->freq_fds = mem_arena_alloc(g_talos_global_arena, total * sizeof(i32));
+
+    cpu->freq_id_count = (i32) cpu->core_count;
+    memset(cpu->freq_fds, -1, total * sizeof(i32));
 
     if (cpu->prev == nullptr || cpu->curr == nullptr || cpu->usage == nullptr ||
         cpu->freq_mhz == nullptr)
@@ -166,6 +170,20 @@ bool talos_cpu_init(talos_cpu *cpu)
 
     cpu_read_model(cpu->model, sizeof(cpu->model));
     cpu_read_stat(cpu->curr, total);
+
+    char path[VX_BUF_SIZE_64];
+    for (u32 i = 0; i < cpu->core_count; i++)
+    {
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq", i);
+        i32 fd = open(path, O_RDONLY);
+        if (fd < 0)
+        {
+            snprintf(
+                path, sizeof(path), "/sys/devices/system/cpu/cpu%u/cpufreq/cpuinfo_cur_freq", i);
+            fd = open(path, O_RDONLY);
+        }
+        cpu->freq_fds[i] = fd;
+    }
 
     return true;
 }
@@ -193,7 +211,7 @@ void talos_cpu_update(talos_cpu *cpu)
         if (i > 0)
         {
             u32 core_id       = i - 1;
-            cpu->freq_mhz[i]  = cpu_get_core_mhz(core_id);
+            cpu->freq_mhz[i]  = cpu_get_core_mhz_fd(cpu->freq_fds[core_id]);
             core_freq_sum    += cpu->freq_mhz[i];
         }
     }
@@ -218,8 +236,17 @@ void talos_cpu_destroy(talos_cpu *cpu)
         return;
     }
 
+    for (i32 i = 0; i < cpu->freq_id_count; i++)
+    {
+        if (cpu->freq_fds[i] >= 0)
+        {
+            close(cpu->freq_fds[i]);
+        }
+    }
+
     cpu->prev     = nullptr;
     cpu->curr     = nullptr;
     cpu->usage    = nullptr;
     cpu->freq_mhz = nullptr;
+    cpu->freq_fds = nullptr;
 }

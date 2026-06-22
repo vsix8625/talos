@@ -21,7 +21,7 @@ bool talos_mem_read(talos_mem *mem)
         return false;
     }
 
-    char line[128];
+    char line[VX_BUF_SIZE_128];
     u64  swap_free = 0;
 
     while (fgets(line, sizeof(line), fp))

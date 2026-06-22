@@ -322,8 +322,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                 talos_gui_table_setup_column("PID", pid_col_flags, 50.0f);
                 talos_gui_table_setup_column("Name", TALOS_TABLE_COLUMN_FLAG_WIDTH_STRETCH, 0.0f);
-                talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 60.0f);
-                talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 70.0f);
+                talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 70.0f);
+                talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 140.0f);
                 talos_gui_table_setup_column("State", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 45.0f);
 
                 talos_gui_table_headers_row();
@@ -409,163 +409,176 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     talos_gui_table_clear_sort_specs_dirty();
                 }
 
-                for (u32 i = 0; i < proc_list->count; i++)
+                talos_gui_list_clipper clipper = {0};
+                talos_gui_list_clipper_begin(&clipper, (i32) proc_list->count);
+                while (talos_gui_list_clipper_step(&clipper))
                 {
-                    talos_process *p      = &proc_list->procs[i];
-                    f32            mem_mb = (f32) p->mem_rss_kb / 1024.0f;
-
-                    talos_gui_push_id_int(p->pid);
-
-                    talos_gui_table_next_row();
-
-                    char buf[VX_BUF_SIZE_32];
-
-                    talos_gui_table_set_column_index(0);
-                    snprintf(buf, sizeof(buf), "%d", p->pid);
-
-                    bool is_selected = (selected_pid == p->pid);
-
-                    vx_vec4f pid_text_color;
-                    bool     apply_text_color = true;
-
-                    if (p->state == 'R')
+                    for (i32 i = talos_gui_list_clipper_display_start(&clipper);
+                         i < talos_gui_list_clipper_display_end(&clipper);
+                         i++)
                     {
-                        pid_text_color = (vx_vec4f) {.r = 0.2f, .g = 1.0f, .b = 0.2f, .a = 1.0f};
-                    }
-                    else if (p->state == 'D')
-                    {
-                        pid_text_color = (vx_vec4f) {.r = 1.0f, .g = 0.2f, .b = 0.2f, .a = 1.0f};
-                    }
-                    else if (p->state == 'Z')
-                    {
-                        pid_text_color = (vx_vec4f) {.r = 0.7f, .g = 0.4f, .b = 0.8f, .a = 1.0f};
-                    }
-                    else
-                    {
-                        apply_text_color = false;
-                    }
+                        talos_process *p      = &proc_list->procs[i];
+                        f32            mem_mb = (f32) p->mem_rss_kb / 1024.0f;
 
-                    if (apply_text_color)
-                    {
-                        talos_gui_push_style_color(TALOS_GUI_COLOR_TEXT, pid_text_color);
-                    }
+                        talos_gui_push_id_int(p->pid);
 
-                    if (talos_gui_selectable(buf, is_selected, 1 << 1))  // span all columns
-                    {
-                        selected_pid = p->pid;
-                        snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", p->name);
-                    }
+                        talos_gui_table_next_row();
 
-                    talos_gui_table_set_column_index(1);
-                    talos_gui_text(p->name);
+                        char buf[VX_BUF_SIZE_32];
 
-                    talos_gui_table_set_column_index(2);
-                    snprintf(buf, sizeof(buf), "%.1f%%", p->cpu_usage);
-                    talos_gui_text(buf);
+                        talos_gui_table_set_column_index(0);
+                        snprintf(buf, sizeof(buf), "%d", p->pid);
 
-                    talos_gui_table_set_column_index(3);
-                    snprintf(buf, sizeof(buf), "%.1fMB", mem_mb);
-                    talos_gui_text(buf);
+                        bool is_selected = (selected_pid == p->pid);
 
-                    talos_gui_table_set_column_index(4);
-                    snprintf(buf, sizeof(buf), "%c", p->state);
-                    talos_gui_text(buf);
+                        vx_vec4f pid_text_color;
+                        bool     apply_text_color = true;
 
-                    if (apply_text_color)
-                    {
-                        talos_gui_pop_style_color(1);
-                    }
-
-                    //----------------------------------------------------------------------------------------------------
-                    // telemetry window
-
-                    if (is_selected)
-                    {
-                        f32 window_w = (f32) ctx->width * 0.55f;
-                        f32 window_h = (f32) ctx->height * 0.45f;
-
-                        if (window_w < 520.0f)
+                        if (p->state == 'R')
                         {
-                            window_w = 520.0f;
+                            pid_text_color =
+                                (vx_vec4f) {.r = 0.2f, .g = 1.0f, .b = 0.2f, .a = 1.0f};
+                        }
+                        else if (p->state == 'D')
+                        {
+                            pid_text_color =
+                                (vx_vec4f) {.r = 1.0f, .g = 0.2f, .b = 0.2f, .a = 1.0f};
+                        }
+                        else if (p->state == 'Z')
+                        {
+                            pid_text_color =
+                                (vx_vec4f) {.r = 0.7f, .g = 0.4f, .b = 0.8f, .a = 1.0f};
+                        }
+                        else
+                        {
+                            apply_text_color = false;
                         }
 
-                        if (window_h < 320.0f)
+                        if (apply_text_color)
                         {
-                            window_h = 320.0f;
+                            talos_gui_push_style_color(TALOS_GUI_COLOR_TEXT, pid_text_color);
                         }
 
-                        f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
-                        f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
-
-                        talos_gui_set_next_window_pos(pos_x, pos_y);
-                        talos_gui_set_next_window_size(window_w, window_h);
-
-                        char title_buf[VX_BUF_SIZE_128];
-                        snprintf(title_buf,
-                                 sizeof(title_buf),
-                                 "Telemetry Profile: %s (PID: %d)##popup",
-                                 p->name,
-                                 p->pid);
-
-                        if (talos_gui_begin(title_buf,
-                                            nullptr,
-                                            TALOS_GUI_WINDOW_NO_COLLAPSE |
-                                                TALOS_GUI_WINDOW_NO_RESIZE))
+                        if (talos_gui_selectable(buf, is_selected, 1 << 1))  // span all columns
                         {
-                            char meta_buf[VX_BUF_SIZE_128];
+                            selected_pid = p->pid;
+                            snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", p->name);
+                        }
 
-                            talos_gui_text("WORKLOAD HISTORY");
-                            talos_gui_separator();
+                        talos_gui_table_set_column_index(1);
+                        talos_gui_text(p->name);
 
-                            snprintf(meta_buf, sizeof(meta_buf), "Name:  %s", p->name);
-                            talos_gui_text(meta_buf);
+                        talos_gui_table_set_column_index(2);
+                        snprintf(buf, sizeof(buf), "%.1f%%", p->cpu_usage);
+                        talos_gui_text(buf);
 
-                            snprintf(meta_buf,
-                                     sizeof(meta_buf),
-                                     "State: %c  |  Memory: %.1fMB",
-                                     p->state,
-                                     mem_mb);
-                            talos_gui_text(meta_buf);
+                        talos_gui_table_set_column_index(3);
+                        snprintf(buf, sizeof(buf), "%.1fMB", mem_mb);
+                        talos_gui_text(buf);
 
-                            talos_gui_spacing();
-                            talos_gui_separator();
-                            talos_gui_spacing();
+                        talos_gui_table_set_column_index(4);
+                        snprintf(buf, sizeof(buf), "%c", p->state);
+                        talos_gui_text(buf);
 
-                            char graph_overlay[VX_BUF_SIZE_32];
-                            snprintf(
-                                graph_overlay, sizeof(graph_overlay), "Live: %.1f%%", p->cpu_usage);
+                        if (apply_text_color)
+                        {
+                            talos_gui_pop_style_color(1);
+                        }
 
-                            f32 graph_w = window_w - 80.0f;
-                            f32 graph_h = window_h - 300.0f;
+                        //----------------------------------------------------------------------------------------------------
+                        // telemetry window
 
-                            talos_gui_plot_lines("##cpu_profile_graph",
-                                                 proc_history_getter,
-                                                 p,
-                                                 TALOS_HISTORY_COUNT,
-                                                 graph_overlay,
-                                                 0.0f,
-                                                 80.0f,
-                                                 graph_w,
-                                                 graph_h);
+                        if (is_selected)
+                        {
+                            f32 window_w = (f32) ctx->width * 0.55f;
+                            f32 window_h = (f32) ctx->height * 0.45f;
 
-                            talos_gui_spacing();
-                            talos_gui_separator();
-                            talos_gui_spacing();
-
-                            if (talos_gui_button("Close") ||
-                                talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+                            if (window_w < 520.0f)
                             {
-                                selected_pid = 0;
+                                window_w = 520.0f;
                             }
 
-                            talos_gui_end();
+                            if (window_h < 320.0f)
+                            {
+                                window_h = 320.0f;
+                            }
+
+                            f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
+                            f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
+
+                            talos_gui_set_next_window_pos(pos_x, pos_y);
+                            talos_gui_set_next_window_size(window_w, window_h);
+
+                            char title_buf[VX_BUF_SIZE_128];
+                            snprintf(title_buf,
+                                     sizeof(title_buf),
+                                     "Telemetry Profile: %s (PID: %d)##popup",
+                                     p->name,
+                                     p->pid);
+
+                            if (talos_gui_begin(title_buf,
+                                                nullptr,
+                                                TALOS_GUI_WINDOW_NO_COLLAPSE |
+                                                    TALOS_GUI_WINDOW_NO_RESIZE))
+                            {
+                                char meta_buf[VX_BUF_SIZE_128];
+
+                                talos_gui_text("WORKLOAD HISTORY");
+                                talos_gui_separator();
+
+                                snprintf(meta_buf, sizeof(meta_buf), "Name:  %s", p->name);
+                                talos_gui_text(meta_buf);
+
+                                snprintf(meta_buf,
+                                         sizeof(meta_buf),
+                                         "State: %c  |  Memory: %.1fMB",
+                                         p->state,
+                                         mem_mb);
+                                talos_gui_text(meta_buf);
+
+                                talos_gui_spacing();
+                                talos_gui_separator();
+                                talos_gui_spacing();
+
+                                char graph_overlay[VX_BUF_SIZE_32];
+                                snprintf(graph_overlay,
+                                         sizeof(graph_overlay),
+                                         "Live: %.1f%%",
+                                         p->cpu_usage);
+
+                                f32 graph_w = window_w - 80.0f;
+                                f32 graph_h = window_h - 300.0f;
+
+                                talos_gui_plot_lines("##cpu_profile_graph",
+                                                     proc_history_getter,
+                                                     p,
+                                                     TALOS_HISTORY_COUNT,
+                                                     graph_overlay,
+                                                     0.0f,
+                                                     80.0f,
+                                                     graph_w,
+                                                     graph_h);
+
+                                talos_gui_spacing();
+                                talos_gui_separator();
+                                talos_gui_spacing();
+
+                                if (talos_gui_button("Close") ||
+                                    talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+                                {
+                                    selected_pid = 0;
+                                }
+
+                                talos_gui_end();
+                            }
                         }
+
+                        //----------------------------------------------------------------------------------------------------
+
+                        talos_gui_pop_id();
                     }
-
-                    //----------------------------------------------------------------------------------------------------
-
-                    talos_gui_pop_id();
                 }
+                talos_gui_list_clipper_end(&clipper);
 
                 talos_gui_end_table();
             }

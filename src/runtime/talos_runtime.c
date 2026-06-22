@@ -55,9 +55,8 @@ void talos_runtime(struct talos_ctx *ctx)
     {
         u64 start_ticks = vx_time_ms();
 
-        // TODO: testing
-        SDL_WaitEventTimeout(nullptr, 10);
-        talos_input_poll(ctx);
+        // SDL_WaitEventTimeout(nullptr, (i32) wait_timeout_ms);
+        talos_input_poll(ctx, &cpu_state);
 
         u64 now = vx_time_ms();
 
@@ -115,9 +114,7 @@ void talos_runtime(struct talos_ctx *ctx)
         }
     }
 
-    talos_update_stop(&cpu_state);
     talos_cpu_destroy(&cpu_state.cpu);
-
     talos_destroy_splash_geometry();
 }
 

@@ -1,6 +1,7 @@
 #include "talos_input.h"
 #include "globals.h"
 #include "gui/talos_gui.h"
+#include "talos_update.h"
 #include "vx_fs.h"
 #include "vx_io.h"
 #include "vx_util.h"
@@ -10,7 +11,7 @@
 
 static void handle_fancontrol(struct talos_ctx *ctx);
 
-void talos_input_poll(struct talos_ctx *ctx)
+void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
 {
     SDL_Event event;
 
@@ -20,7 +21,12 @@ void talos_input_poll(struct talos_ctx *ctx)
 
         switch (event.type)
         {
-            case SDL_EVENT_QUIT: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
+            case SDL_EVENT_QUIT:
+            {
+                ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
+                talos_update_stop(cpu_state);
+                break;
+            }
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
             {
@@ -90,8 +96,14 @@ void talos_input_poll(struct talos_ctx *ctx)
                     }
 
                     case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
-                    case SDLK_Q: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
                     case SDLK_G: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
+
+                    case SDLK_Q:
+                    {
+                        ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
+                        talos_update_stop(cpu_state);
+                        break;
+                    }
 
                     default: break;
                 }

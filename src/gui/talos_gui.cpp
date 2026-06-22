@@ -534,3 +534,29 @@ TALOS_API void talos_gui_plot_lines(const char *label,
               scale_max,
               (ImVec2) {graph_width, graph_height});
 }
+
+TALOS_API void talos_gui_list_clipper_begin(talos_gui_list_clipper *clipper, i32 count)
+{
+    ImGuiListClipper *c = (ImGuiListClipper *) clipper;
+    c->Begin(count);
+}
+
+TALOS_API bool talos_gui_list_clipper_step(talos_gui_list_clipper *clipper)
+{
+    return ((ImGuiListClipper *) clipper)->Step();
+}
+
+TALOS_API void talos_gui_list_clipper_end(talos_gui_list_clipper *clipper)
+{
+    ((ImGuiListClipper *) clipper)->End();
+}
+
+TALOS_API i32 talos_gui_list_clipper_display_start(talos_gui_list_clipper *clipper)
+{
+    return ((ImGuiListClipper *) clipper)->DisplayStart;
+}
+
+TALOS_API i32 talos_gui_list_clipper_display_end(talos_gui_list_clipper *clipper)
+{
+    return ((ImGuiListClipper *) clipper)->DisplayEnd;
+}

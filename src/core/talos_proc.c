@@ -23,7 +23,7 @@ static bool is_pid_dir(const char *name)
 
 static bool read_proc_stat(i32 pid, talos_process *out)
 {
-    char path[256];
+    char path[VX_BUF_SIZE_256];
     snprintf(path, sizeof(path), "/proc/%d/stat", pid);
 
     FILE *fp = fopen(path, "r");
@@ -32,7 +32,7 @@ static bool read_proc_stat(i32 pid, talos_process *out)
         return false;
     }
 
-    char line[1024];
+    char line[VX_BUF_SIZE_1024];
     if (fgets(line, sizeof(line), fp) == nullptr)
     {
         fclose(fp);
@@ -65,50 +65,28 @@ static bool read_proc_stat(i32 pid, talos_process *out)
     i32  ppid;
     u64  utime, stime;
 
+    u64 rss_pages = 0;
+
     i32 parsed = sscanf(close + 2,
                         "%c %d %*d %*d %*d %*d %*d %*d %*d %*d %*d "
-                        "%" SCNu64 " %" SCNu64,
+                        "%" SCNu64 " %" SCNu64 " %*d %*d %*d %*d %*d %*d %*d %*d "
+                        "%" SCNu64,
                         &state,
                         &ppid,
                         &utime,
-                        &stime);
+                        &stime,
+                        &rss_pages);
 
-    if (parsed != 4)
+    if (parsed != 5)
     {
         return false;
     }
 
-    out->state = state;
-    out->utime = utime;
-    out->stime = stime;
-
+    out->state      = state;
+    out->utime      = utime;
+    out->stime      = stime;
+    out->mem_rss_kb = rss_pages * (u64) getpagesize() / 1024;
     return true;
-}
-
-static bool read_proc_mem(i32 pid, u64 *rss_kb)
-{
-    char path[256];
-    snprintf(path, sizeof(path), "/proc/%d/status", pid);
-
-    FILE *fp = fopen(path, "r");
-    if (fp == nullptr)
-    {
-        return false;
-    }
-
-    char line[256];
-    while (fgets(line, sizeof(line), fp))
-    {
-        if (strncmp(line, "VmRSS:", 6) == 0)
-        {
-            sscanf(line + 6, "%" SCNu64, rss_kb);
-            fclose(fp);
-            return true;
-        }
-    }
-
-    fclose(fp);
-    return false;
 }
 
 static i32 cmp_cpu(const void *a, const void *b, void *ctx)
@@ -224,8 +202,6 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
         {
             continue;
         }
-        read_proc_mem(pid, &p->mem_rss_kb);
-
         p->cpu_usage = 0.0f;
 
         for (u32 i = 0; i < prev_list->count; i++)
@@ -249,7 +225,8 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
                 }
 
                 p->cpu_history[p->history_head] = p->cpu_usage;
-                p->history_head                 = (p->history_head + 1) % 60;
+
+                p->history_head = (p->history_head + 1) % 60;
 
                 break;
             }

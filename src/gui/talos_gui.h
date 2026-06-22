@@ -147,6 +147,11 @@ TALOS_API
     #define TALOS_API
 #endif
 
+    typedef struct
+    {
+        u8 data[64];  // sizeof struct ImGuiListClipper
+    } talos_gui_list_clipper;
+
     int  talos_gui_init(void *window, void *gl_ctx, int width);
     void talos_gui_shutdown(void);
 
@@ -247,6 +252,12 @@ TALOS_API
                               float       scale_max,
                               float       graph_width,
                               float       graph_height);
+
+    void talos_gui_list_clipper_begin(talos_gui_list_clipper * clipper, i32 count);
+    bool talos_gui_list_clipper_step(talos_gui_list_clipper * clipper);
+    void talos_gui_list_clipper_end(talos_gui_list_clipper * clipper);
+    i32  talos_gui_list_clipper_display_start(talos_gui_list_clipper * clipper);
+    i32  talos_gui_list_clipper_display_end(talos_gui_list_clipper * clipper);
 
 #ifdef __cplusplus
 }
