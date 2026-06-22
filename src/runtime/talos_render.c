@@ -1081,7 +1081,7 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[g]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
         talos_gui_text("[q]       Exit Talos");
-        talos_gui_text("[F1]      Open About window");
+        talos_gui_text("[F1]      Toggle About window");
         talos_gui_text("[F2]      Toggle Limited/Normal modes");
         talos_gui_text("[F3]      Toggle Boosted/Normal modes");
         talos_gui_text("[F4]      Cycle Fan modes (if installed)");
