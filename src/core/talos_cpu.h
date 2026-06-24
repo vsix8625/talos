@@ -31,6 +31,25 @@ typedef struct talos_cpu_s
     char            governor[VX_BUF_SIZE_32];
 } talos_cpu;
 
+typedef struct talos_cpu_info_s
+{
+    char model_name[VX_BUF_SIZE_128];
+    char vendor_id[VX_BUF_SIZE_64];
+    char architecture[VX_BUF_SIZE_32];
+    u32  total_cores;
+    u32  threads_per_core;
+    f32  max_mhz;
+    f32  min_mhz;
+    char cache_l1d[VX_BUF_SIZE_32];
+    char cache_l1i[VX_BUF_SIZE_32];
+    char cache_l2[VX_BUF_SIZE_32];
+    char cache_l3[VX_BUF_SIZE_32];
+    u32  numa_nodes;
+    char flags[VX_BUF_SIZE_512];
+} talos_cpu_info;
+
 bool talos_cpu_init(talos_cpu *cpu);
 void talos_cpu_update(talos_cpu *cpu);
 void talos_cpu_destroy(talos_cpu *cpu);
+
+void talos_cpu_sysfs_bounds(talos_cpu_info *info);

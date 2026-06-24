@@ -1,5 +1,6 @@
 #pragma once
 
+#include "talos_cpu.h"
 #include "vx_defs.h"
 #include <SDL3/SDL_video.h>
 
@@ -66,6 +67,8 @@ struct talos_ctx
     i32  fan_profile_idx;  // which one is currently active
 
     talos_rtime_state state;
+
+    talos_cpu_info *cpu_info;
 };
 
 #define TALOS_TARGET_FPS_60 16

@@ -133,7 +133,7 @@ static void cpu_read_model(char *out, u32 size)
         return;
     }
 
-    char line[256];
+    char line[VX_BUF_SIZE_256];
     while (fgets(line, sizeof(line), fp))
     {
         if (strncmp(line, "model name", 10) == 0)
@@ -288,4 +288,186 @@ void talos_cpu_destroy(talos_cpu *cpu)
     cpu->usage    = nullptr;
     cpu->freq_mhz = nullptr;
     cpu->freq_fds = nullptr;
+}
+
+void talos_cpu_sysfs_bounds(talos_cpu_info *info)
+{
+    if (info == nullptr)
+    {
+        return;
+    }
+
+    FILE *f_max = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "r");
+    if (f_max)
+    {
+        u64 khz = 0;
+        if (fscanf(f_max, "%" SCNu64, &khz) == 1)
+        {
+            info->max_mhz = (f32) khz / 1000.0f;
+        }
+        fclose(f_max);
+    }
+
+    FILE *f_min = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq", "r");
+    if (f_min)
+    {
+        u64 khz = 0;
+        if (fscanf(f_min, "%" SCNu64, &khz) == 1)
+        {
+            info->min_mhz = (f32) khz / 1000.0f;
+        }
+        fclose(f_min);
+    }
+
+    char path[VX_BUF_SIZE_128];
+    char type_buf[VX_BUF_SIZE_32];
+    char size_buf[VX_BUF_SIZE_32];
+    i32  level = 0;
+
+    for (i32 idx = 0; idx < 5; idx++)
+    {
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cache/index%d/level", idx);
+        FILE *f_lvl = fopen(path, "r");
+        if (!f_lvl)
+        {
+            break;
+        }
+
+        if (fscanf(f_lvl, "%d", &level) != 1)
+        {
+            fclose(f_lvl);
+            continue;
+        }
+        fclose(f_lvl);
+
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cache/index%d/size", idx);
+        FILE *f_size = fopen(path, "r");
+        if (f_size)
+        {
+            if (fgets(size_buf, sizeof(size_buf), f_size))
+            {
+                size_t len = strlen(size_buf);
+                if (len > 0 && size_buf[len - 1] == '\n')
+                {
+                    size_buf[len - 1] = '\0';
+                }
+            }
+            fclose(f_size);
+        }
+
+        if (level == 1)
+        {
+            snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu0/cache/index%d/type", idx);
+            FILE *f_type = fopen(path, "r");
+            if (f_type)
+            {
+                if (fgets(type_buf, sizeof(type_buf), f_type))
+                {
+                    if (strncmp(type_buf, "Data", 4) == 0)
+                    {
+                        snprintf(info->cache_l1d, sizeof(info->cache_l1d), "%s", size_buf);
+                    }
+                    else if (strncmp(type_buf, "Instruction", 11) == 0)
+                    {
+                        snprintf(info->cache_l1i, sizeof(info->cache_l1i), "%s", size_buf);
+                    }
+                }
+                fclose(f_type);
+            }
+        }
+        else if (level == 2)
+        {
+            snprintf(info->cache_l2, sizeof(info->cache_l2), "%s", size_buf);
+        }
+        else if (level == 3)
+        {
+            snprintf(info->cache_l3, sizeof(info->cache_l3), "%s", size_buf);
+        }
+    }
+
+    info->numa_nodes = 0;
+    while (true)
+    {
+        snprintf(path, sizeof(path), "/sys/devices/system/node/node%d", info->numa_nodes);
+        FILE *f_node = fopen(path, "r");
+        if (!f_node)
+        {
+            break;
+        }
+        fclose(f_node);
+        info->numa_nodes++;
+    }
+
+    if (info->numa_nodes == 0)
+    {
+        info->numa_nodes = 1;
+    }
+
+    cpu_read_model(info->model_name, sizeof(info->model_name));
+
+    info->total_cores      = vx_cpu_get_nproc();
+    info->threads_per_core = 1;
+
+    FILE *f_sib = fopen("/sys/devices/system/cpu/cpu0/topology/thread_siblings_list", "r");
+    if (f_sib)
+    {
+        char sib_buf[64];
+        if (fgets(sib_buf, sizeof(sib_buf), f_sib))
+        {
+            u32 count = 1;
+            for (char *p = sib_buf; *p != '\0'; p++)
+            {
+                if (*p == ',' || *p == '-')
+                    count++;
+            }
+            info->threads_per_core = count;
+        }
+        fclose(f_sib);
+    }
+
+    FILE *f_cpu = fopen("/proc/cpuinfo", "r");
+    if (f_cpu)
+    {
+        char line[512];
+        while (fgets(line, sizeof(line), f_cpu))
+        {
+            char *colon = strchr(line, ':');
+            if (!colon)
+                continue;
+
+            *colon    = '\0';
+            char *key = line;
+            char *val = colon + 1;
+
+            size_t k_len = strlen(key);
+            while (k_len > 0 && (key[k_len - 1] == ' ' || key[k_len - 1] == '\t'))
+            {
+                key[--k_len] = '\0';
+            }
+
+            while (*val == ' ' || *val == '\t')
+            {
+                val++;
+            }
+            size_t v_len = strlen(val);
+            if (v_len > 0 && val[v_len - 1] == '\n')
+            {
+                val[v_len - 1] = '\0';
+            }
+
+            if (strcmp(key, "model name") == 0 && info->model_name[0] == '\0')
+            {
+                snprintf(info->model_name, sizeof(info->model_name), "%s", val);
+            }
+            else if (strcmp(key, "vendor_id") == 0 && info->vendor_id[0] == '\0')
+            {
+                snprintf(info->vendor_id, sizeof(info->vendor_id), "%s", val);
+            }
+            else if (strcmp(key, "flags") == 0 && info->flags[0] == '\0')
+            {
+                snprintf(info->flags, sizeof(info->flags), "%s", val);
+            }
+        }
+        fclose(f_cpu);
+    }
 }

@@ -1,6 +1,7 @@
 #include "talos_runtime.h"
 #include "globals.h"
 #include "gui/talos_gui.h"
+#include "mem_arena.h"
 #include "talos_gl.h"
 #include "talos_state.h"
 #include "talos_update.h"
@@ -41,6 +42,16 @@ void talos_runtime(struct talos_ctx *ctx)
     ctx->state         |= TALOS_RUNTIME_STATE_FOCUSED;
 
     ctx->fan_state = TALOS_FAN_STATE_BALANCED;
+
+    //----------------------------------------------------------------------------------------------------
+    // read cpuinfo
+
+    talos_cpu_info cpu_info = {0};
+    talos_cpu_sysfs_bounds(&cpu_info);
+    ctx->cpu_info = mem_arena_zalloc(g_talos_global_arena, sizeof(talos_cpu_info));
+    memcpy(ctx->cpu_info, &cpu_info, sizeof(talos_cpu_info));
+
+    //----------------------------------------------------------------------------------------------------
 
     // render stage
     talos_init_splash_geometry();

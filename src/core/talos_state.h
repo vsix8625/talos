@@ -20,7 +20,8 @@ typedef struct
     char net_interface[VX_BUF_SIZE_32];
     char disk_device[VX_BUF_SIZE_32];
 
-    atomic_bool      running;
     struct vx_thread thread;
     talos_proc_state proc_state;
+
+    atomic_bool running;
 } talos_state;

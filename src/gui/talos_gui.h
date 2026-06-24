@@ -101,6 +101,7 @@ typedef enum
 typedef enum
 {
     TALOS_GUI_COLOR_TEXT           = 0,
+    TALOS_GUI_COLOR_WINDOW_BG      = 2,
     TALOS_GUI_COLOR_BUTTON         = 21,
     TALOS_GUI_COLOR_BUTTON_HOVERED = 22,
     TALOS_GUI_COLOR_HISTOGRAM      = 43,
@@ -130,8 +131,9 @@ typedef enum talos_imgui_key
     TALOS_KEY_A     = 546,
     TALOS_KEY_C     = 548,
     TALOS_KEY_D     = 549,
-    TALOS_KEY_F11   = 578,
-    TALOS_KEY_F12   = 579,
+    TALOS_KEY_F10   = 581,
+    TALOS_KEY_F11   = 582,
+    TALOS_KEY_F12   = 583,
     TALOS_KEY_SLASH = 600,
     TALOS_MOD_CTRL  = 1 << 12,
     TALOS_MOD_SHIFT = 1 << 13,
@@ -262,6 +264,8 @@ TALOS_API
 
     void talos_gui_set_keyboard_focus_here(void);
     bool talos_gui_want_capture_keyboard(void);
+
+    void talos_gui_text_wrapped(const char *fmt, ...);
 
 #ifdef __cplusplus
 }

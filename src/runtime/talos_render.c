@@ -17,6 +17,8 @@
 
 GLuint g_splash_shader_program_id = 0, g_splash_vao = 0, g_splash_vbo = 0;
 
+//----------------------------------------------------------------------------------------------------
+
 static void compile_splash_shader(void);
 static u32  shader_compile(const char *source, u32 type);
 static u32  shader_link(const char *vert_src, const char *frag_src);
@@ -25,6 +27,10 @@ static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f3
 static u32  proc_list_filter(const talos_proc_list *proc_list,
                              const char            *search_query,
                              i32                   *out_filtered_indices);
+
+static void render_cpu_details(struct talos_ctx *ctx, int *show_cpu_details);
+
+//----------------------------------------------------------------------------------------------------
 
 static float proc_history_getter(void *data, int idx)
 {
@@ -119,11 +125,12 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
     char header_buf[VX_BUF_SIZE_128];
     snprintf(header_buf,
              sizeof(header_buf),
-             "Talos %s | %s | %s Mode | [F1: About]",
+             "Talos %s | %s | [F1]: About",
              TALOS_VERSION_STRING,
-             state->cpu.model,
              fps_mode);
     talos_gui_text(header_buf);
+    talos_gui_same_line_offset(ctx->width - 200.0f);
+    talos_gui_text("[F12]: Exit");
 
     talos_gui_pop_font();
 
@@ -198,6 +205,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         }
 
         talos_gui_text(cpu_header_buf);
+
         talos_gui_separator();
         talos_gui_spacing();
 
@@ -206,7 +214,27 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         char agg_text[VX_BUF_SIZE_64];
         snprintf(
             agg_text, sizeof(agg_text), "Total Workload: %.1f%%", aggregate_visual_load * 100.0f);
+
+        f32 right_align_x = card_width - 60.0f;
         talos_gui_text(agg_text);
+        talos_gui_same_line_offset(right_align_x);
+
+        //-------------------
+        // cpu info
+
+        static i32 show_cpu_details = 0;
+
+        if (talos_gui_button("[i]") || talos_gui_is_key_pressed(TALOS_KEY_F10))
+        {
+            show_cpu_details = 1;
+        }
+
+        if (show_cpu_details)
+        {
+            render_cpu_details(ctx, &show_cpu_details);
+        }
+
+        //-------------------
 
         vx_vec4f agg_color = ui_calculate_load_color(aggregate_visual_load);
         talos_gui_push_style_color(TALOS_GUI_COLOR_HISTOGRAM, agg_color);
@@ -1115,6 +1143,7 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[F3]      Toggle Boosted/Normal modes");
         talos_gui_text("[F4]      Cycle Fan modes (if installed)");
         talos_gui_text("[F5]      Cycle Governor modes (if installed)");
+        talos_gui_text("[F10]     Open Extended CPU details window");
         talos_gui_text("[F11]     Toggle Fullscreen mode");
         talos_gui_text("[F12]     Exit Talos");
 
@@ -1509,4 +1538,105 @@ static u32 proc_list_filter(const talos_proc_list *proc_list,
     }
 
     return filtered_count;
+}
+
+static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details)
+{
+    if (ctx == nullptr)
+    {
+        return;
+    }
+
+    f32 window_w = (f32) ctx->width * 0.55f;
+    f32 window_h = (f32) ctx->height * 0.75f;
+
+    if (window_w < 500.0f)
+    {
+        window_w = 500.0f;
+    }
+
+    if (window_h < 420.0f)
+    {
+        window_h = 420.0f;
+    }
+
+    f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
+    f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
+
+    talos_gui_set_next_window_pos(pos_x, pos_y);
+    talos_gui_set_next_window_size(window_w, window_h);
+
+    i32 window_flags = TALOS_GUI_WINDOW_NO_RESIZE | TALOS_GUI_WINDOW_NO_COLLAPSE;
+
+    talos_gui_push_style_color(TALOS_GUI_COLOR_BUTTON_HOVERED,
+                               (vx_vec4f) {.r = 0.15f, .g = 0.15f, .b = 0.15f, .a = 1.0f});
+
+    if (talos_gui_begin("CPU Harware Information", show_cpu_details, window_flags))
+    {
+        talos_cpu_info *hw = ctx->cpu_info;
+
+        char format_buf[VX_BUF_SIZE_256];
+
+        talos_gui_text("SUMMARY");
+        talos_gui_separator();
+
+        snprintf(format_buf, sizeof(format_buf), "Model Name:     %s", hw->model_name);
+        talos_gui_text(format_buf);
+
+        snprintf(format_buf,
+                 sizeof(format_buf),
+                 "Architecture:   %s (Vendor: %s)",
+                 hw->architecture,
+                 hw->vendor_id);
+        talos_gui_text(format_buf);
+
+        snprintf(format_buf,
+                 sizeof(format_buf),
+                 "Cores / Threads: %d Cores / %d Threads per core",
+                 hw->total_cores,
+                 hw->threads_per_core);
+        talos_gui_text(format_buf);
+
+        snprintf(format_buf,
+                 sizeof(format_buf),
+                 "Clock Limits:    Max: %.1f MHz  |  Min: %.1f MHz",
+                 hw->max_mhz,
+                 hw->min_mhz);
+        talos_gui_text(format_buf);
+
+        snprintf(format_buf, sizeof(format_buf), "NUMA Topology:  %d Node(s)", hw->numa_nodes);
+        talos_gui_text(format_buf);
+
+        talos_gui_spacing();
+        talos_gui_text("CACHE CONFIGURATIONS");
+        talos_gui_separator();
+
+        snprintf(format_buf, sizeof(format_buf), "L1 Data Cache:   %s", hw->cache_l1d);
+        talos_gui_text(format_buf);
+        snprintf(format_buf, sizeof(format_buf), "L1 Inst Cache:   %s", hw->cache_l1i);
+        talos_gui_text(format_buf);
+        snprintf(format_buf, sizeof(format_buf), "L2 Cache:        %s", hw->cache_l2);
+        talos_gui_text(format_buf);
+
+        if (hw->cache_l3[0] != '\0')
+        {
+            snprintf(format_buf, sizeof(format_buf), "L3 Cache:        %s", hw->cache_l3);
+            talos_gui_text(format_buf);
+        }
+
+        talos_gui_spacing();
+        talos_gui_text("INSTRUCTION SET FLAGS");
+        talos_gui_separator();
+        talos_gui_text_wrapped(hw->flags);
+
+        talos_gui_spacing();
+        if (talos_gui_button("Close") || talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+        {
+            *show_cpu_details = 0;
+        }
+
+        talos_gui_end();
+    }
+
+    talos_gui_pop_style_color(1);
 }

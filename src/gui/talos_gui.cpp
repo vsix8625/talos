@@ -570,3 +570,13 @@ TALOS_API bool talos_gui_want_capture_keyboard(void)
 {
     return GetIO().WantCaptureKeyboard;
 }
+
+TALOS_API void talos_gui_text_wrapped(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    TextWrappedV(fmt, args);
+
+    va_end(args);
+}
