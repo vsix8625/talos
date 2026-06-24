@@ -21,6 +21,11 @@ static void compile_splash_shader(void);
 static u32  shader_compile(const char *source, u32 type);
 static u32  shader_link(const char *vert_src, const char *frag_src);
 
+static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy);
+static u32  proc_list_filter(const talos_proc_list *proc_list,
+                             const char            *search_query,
+                             i32                   *out_filtered_indices);
+
 static float proc_history_getter(void *data, int idx)
 {
     talos_process *p = (talos_process *) data;
@@ -410,16 +415,40 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     talos_gui_table_clear_sort_specs_dirty();
                 }
 
+                static bool show_search_popup            = false;
+                static char search_query[VX_BUF_SIZE_64] = {0};
+
+                if (talos_gui_is_key_pressed(TALOS_KEY_SLASH) && !show_search_popup)
+                {
+                    show_search_popup = true;
+                }
+
+                if (show_search_popup)
+                {
+                    render_search_popup(&show_search_popup,
+                                        search_query,
+                                        sizeof(search_query),
+                                        left_column_x + 10.0f,
+                                        60.0f + half_height + padding);
+                }
+
+                i32 filtered_indices[TALOS_PROC_MAX];
+
+                u32 filtered_count = proc_list_filter(proc_list, search_query, filtered_indices);
+
                 talos_gui_list_clipper clipper = {0};
-                talos_gui_list_clipper_begin(&clipper, (i32) proc_list->count);
+                talos_gui_list_clipper_begin(&clipper, (i32) filtered_count);
                 while (talos_gui_list_clipper_step(&clipper))
                 {
                     for (i32 i = talos_gui_list_clipper_display_start(&clipper);
                          i < talos_gui_list_clipper_display_end(&clipper);
                          i++)
                     {
-                        talos_process *p      = &proc_list->procs[i];
-                        f32            mem_mb = (f32) p->mem_rss_kb / 1024.0f;
+                        i32 real_idx = filtered_indices[i];
+
+                        talos_process *p = &proc_list->procs[real_idx];
+
+                        f32 mem_mb = (f32) p->mem_rss_kb / 1024.0f;
 
                         talos_gui_push_id_int(p->pid);
 
@@ -585,7 +614,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             }
         }
 
-        if (selected_pid != 0 && talos_gui_is_key_pressed(TALOS_KEY_D))
+        if (selected_pid != 0 && talos_gui_is_key_pressed(TALOS_KEY_D) &&
+            !(talos_gui_want_capture_keyboard()))
         {
             show_kill_popup = true;
         }
@@ -1080,7 +1110,6 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
         talos_gui_text("[g]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
-        talos_gui_text("[q]       Exit Talos");
         talos_gui_text("[F1]      Toggle About window");
         talos_gui_text("[F2]      Toggle Limited/Normal modes");
         talos_gui_text("[F3]      Toggle Boosted/Normal modes");
@@ -1349,4 +1378,135 @@ void talos_destroy_splash_geometry(void)
     {
         glDeleteProgram(g_splash_shader_program_id);
     }
+}
+
+static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy)
+{
+    talos_gui_set_next_window_size(400.0f, 60.0f);
+    talos_gui_set_next_window_pos(posx, posy);
+    u32 popup_flags =
+        TALOS_GUI_WINDOW_NO_TITLE_BAR | TALOS_GUI_WINDOW_NO_RESIZE | TALOS_GUI_WINDOW_NO_MOVE;
+
+    if (talos_gui_begin("##process_search_popup", nullptr, popup_flags))
+    {
+        talos_gui_text("search: ");
+        talos_gui_same_line();
+
+        talos_gui_set_keyboard_focus_here();
+
+        talos_gui_input_text("##search_input", query_buf, buf_size);
+
+        if (talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+        {
+            *open        = false;
+            query_buf[0] = '\0';
+        }
+        else if (talos_gui_is_key_pressed(TALOS_KEY_ENTER))
+        {
+            *open = false;
+        }
+
+        talos_gui_end();
+    }
+}
+
+static bool str_fuzzy_match(const char *str, const char *query)
+{
+    if (!query || query[0] == '\0')
+    {
+        return true;
+    }
+
+    if (!str || str[0] == '\0')
+    {
+        return false;
+    }
+
+    const char *s = str;
+    const char *q = query;
+
+    while (*s != '\0' && *q != '\0')
+    {
+        char c1 = *s;
+        char c2 = *q;
+
+        if (c1 >= 'A' && c1 <= 'Z')
+        {
+            c1 = (char) (c1 + 32);
+        }
+        if (c2 >= 'A' && c2 <= 'Z')
+        {
+            c2 = (char) (c2 + 32);
+        }
+
+        if (c1 == c2)
+        {
+            q++;
+        }
+
+        s++;
+    }
+
+    return (*q == '\0');
+}
+
+static bool str_starts_with(const char *str, const char *prefix)
+{
+    while (*prefix)
+    {
+        char c1 = *str++;
+        char c2 = *prefix++;
+        if (c1 >= 'A' && c1 <= 'Z')
+        {
+            c1 = (char) (c1 + 32);
+        }
+        if (c2 >= 'A' && c2 <= 'Z')
+        {
+            c2 = (char) (c2 + 32);
+        }
+        if (c1 != c2)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static u32 proc_list_filter(const talos_proc_list *proc_list,
+                            const char            *search_query,
+                            i32                   *out_filtered_indices)
+{
+    if (search_query == nullptr || search_query[0] == '\0')
+    {
+        for (u32 i = 0; i < proc_list->count; i++)
+        {
+            out_filtered_indices[i] = (i32) i;
+        }
+        return proc_list->count;
+    }
+
+    u32 filtered_count = 0;
+
+    for (u32 i = 0; i < proc_list->count; i++)
+    {
+        if (str_starts_with(proc_list->procs[i].name, search_query))
+        {
+            out_filtered_indices[filtered_count++] = (i32) i;
+        }
+    }
+
+    for (u32 i = 0; i < proc_list->count; i++)
+    {
+        if (str_starts_with(proc_list->procs[i].name, search_query))
+        {
+            continue;
+        }
+
+        if (str_fuzzy_match(proc_list->procs[i].name, search_query))
+        {
+            out_filtered_indices[filtered_count++] = (i32) i;
+        }
+    }
+
+    return filtered_count;
 }

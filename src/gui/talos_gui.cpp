@@ -560,3 +560,13 @@ TALOS_API i32 talos_gui_list_clipper_display_end(talos_gui_list_clipper *clipper
 {
     return ((ImGuiListClipper *) clipper)->DisplayEnd;
 }
+
+TALOS_API void talos_gui_set_keyboard_focus_here(void)
+{
+    SetKeyboardFocusHere(0);
+}
+
+TALOS_API bool talos_gui_want_capture_keyboard(void)
+{
+    return GetIO().WantCaptureKeyboard;
+}

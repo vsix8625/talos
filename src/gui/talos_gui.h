@@ -132,6 +132,7 @@ typedef enum talos_imgui_key
     TALOS_KEY_D     = 549,
     TALOS_KEY_F11   = 578,
     TALOS_KEY_F12   = 579,
+    TALOS_KEY_SLASH = 600,
     TALOS_MOD_CTRL  = 1 << 12,
     TALOS_MOD_SHIFT = 1 << 13,
     TALOS_MOD_ALT   = 1 << 14
@@ -258,6 +259,9 @@ TALOS_API
     void talos_gui_list_clipper_end(talos_gui_list_clipper * clipper);
     i32  talos_gui_list_clipper_display_start(talos_gui_list_clipper * clipper);
     i32  talos_gui_list_clipper_display_end(talos_gui_list_clipper * clipper);
+
+    void talos_gui_set_keyboard_focus_here(void);
+    bool talos_gui_want_capture_keyboard(void);
 
 #ifdef __cplusplus
 }

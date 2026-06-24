@@ -106,13 +106,6 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                     case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
                     case SDLK_G: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
 
-                    case SDLK_Q:
-                    {
-                        ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
-                        talos_update_stop(cpu_state);
-                        break;
-                    }
-
                     default: break;
                 }
             }  // key down

@@ -2,8 +2,8 @@ cc: /usr/bin/gcc
 cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
-minor: 9
-patch: 1
+minor: 10
+patch: 0
 
 if(__sk_version_minor__ < 8)
 {
@@ -94,6 +94,7 @@ target talos_fanctl
 
     sources:
         tools/talos-fanctl/talos-fanctl.c
+
 }
 
 target talos_power
