@@ -69,6 +69,8 @@ static i32 talos_init(void)
         }
     }
 
+    g_talos_ctx.ticks_per_sec = sysconf(_SC_CLK_TCK);
+
     if (!talos_gui_init(g_talos_ctx.window, g_talos_ctx.gl_context, mode_width))
     {
         result = VX_EXIT_FAILURE;

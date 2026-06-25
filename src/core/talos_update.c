@@ -11,6 +11,7 @@ static void *update_loop(void *arg)
 {
     talos_state *state = (talos_state *) arg;
 
+    struct timespec wake;
     while (atomic_load(&state->running))
     {
         talos_cpu_update(&state->cpu);
@@ -21,9 +22,25 @@ static void *update_loop(void *arg)
         talos_disk_read(&state->disk, state->disk_device);
         talos_net_read(&state->net, state->net_interface);
 
-        struct timespec wake;
         clock_gettime(CLOCK_MONOTONIC, &wake);
-        wake.tv_sec += 1;
+        if (g_talos_ctx.state & TALOS_RUNTIME_STATE_BOOST_FPS)
+        {
+            wake.tv_nsec += 500 * 1'000'000;
+
+            if (wake.tv_nsec >= 1'000'000'000)
+            {
+                wake.tv_sec  += 1;
+                wake.tv_nsec -= 1'000'000'000;
+            }
+        }
+        else if (g_talos_ctx.state & TALOS_RUNTIME_STATE_LIMIT_FPS)
+        {
+            wake.tv_sec += 2;
+        }
+        else
+        {
+            wake.tv_sec += 1;
+        }
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wake, NULL);
     }
 

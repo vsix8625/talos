@@ -104,7 +104,40 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                     }
 
                     case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
-                    case SDLK_G: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
+
+                    case SDLK_O: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
+
+                    case SDLK_G:
+                    {
+                        SDL_Keymod mod = SDL_GetModState();
+
+                        if (mod & SDL_KMOD_SHIFT)
+                        {
+                            ctx->state |= TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM;
+                        }
+                        else
+                        {
+                            ctx->state |= TALOS_RUNTIME_STATE_PROC_LIST_TOP;
+                        }
+
+                        break;
+                    }
+
+                    case SDLK_K:
+                    case SDLK_UP:
+                    {
+                        ctx->state &= ~TALOS_RUNTIME_STATE_NAVIGATE_DOWN;
+                        ctx->state |= TALOS_RUNTIME_STATE_NAVIGATE_UP;
+                        break;
+                    }
+
+                    case SDLK_J:
+                    case SDLK_DOWN:
+                    {
+                        ctx->state &= ~TALOS_RUNTIME_STATE_NAVIGATE_UP;
+                        ctx->state |= TALOS_RUNTIME_STATE_NAVIGATE_DOWN;
+                        break;
+                    }
 
                     default: break;
                 }

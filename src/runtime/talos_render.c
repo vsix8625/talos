@@ -19,11 +19,12 @@ GLuint g_splash_shader_program_id = 0, g_splash_vao = 0, g_splash_vbo = 0;
 
 //----------------------------------------------------------------------------------------------------
 
+static void format_time_buf(i32 total_secs, char *out_buf, size_t size);
 static void compile_splash_shader(void);
 static u32  shader_compile(const char *source, u32 type);
 static u32  shader_link(const char *vert_src, const char *frag_src);
 
-static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy);
+static bool render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy);
 static u32  proc_list_filter(const talos_proc_list *proc_list,
                              const char            *search_query,
                              i32                   *out_filtered_indices);
@@ -66,8 +67,9 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         return;
     }
 
-    static i32  selected_pid    = -1;
-    static bool show_kill_popup = false;
+    static i32  selected_pid        = 0;
+    static i32  selected_visual_idx = -1;
+    static bool show_kill_popup     = false;
 
     static char selected_proc_name[VX_BUF_SIZE_256] = {0};
 
@@ -88,6 +90,19 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             ui_alpha = 1.0f;
         }
     }
+
+    struct sysinfo info;
+
+    u64 uptime_secs = 0;
+    if (sysinfo(&info) == 0)
+    {
+        uptime_secs = info.uptime;
+    }
+
+    u64 uptime_days_remainder = uptime_secs / 86400;
+    u64 uptime_hour_remainder = (uptime_secs % 86400) / 3600;
+    u64 uptime_min_remainder  = (uptime_secs % 3600) / 60;
+    u64 uptime_sec_remainder  = uptime_secs % 60;
 
     talos_gui_push_style_var(TALOS_IMGUI_STYLE_VAR_ALPHA, ui_alpha);
 
@@ -165,32 +180,19 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
             visual_mhz = (f32) state->cpu.freq_mhz[0];
         }
 
-        struct sysinfo info;
-
-        u64 uptime_secs = 0;
-        if (sysinfo(&info) == 0)
-        {
-            uptime_secs = info.uptime;
-        }
-
-        u64 days    = uptime_secs / 86400;
-        u64 hours   = (uptime_secs % 86400) / 3600;
-        u64 minutes = (uptime_secs % 3600) / 60;
-        u64 seconds = uptime_secs % 60;
-
         visual_mhz += ((f32) state->cpu.freq_mhz[0] - visual_mhz) * lerp_factor;
         char cpu_header_buf[VX_BUF_SIZE_128];
 
-        if (days == 0)
+        if (uptime_days_remainder == 0)
         {
             snprintf(cpu_header_buf,
                      sizeof(cpu_header_buf),
                      "CPU %.0f MHz | %s | Uptime: %02" PRIu64 ":%02" PRIu64 ":%02" PRIu64,
                      visual_mhz,
                      state->cpu.governor,
-                     hours,
-                     minutes,
-                     seconds);
+                     uptime_hour_remainder,
+                     uptime_min_remainder,
+                     uptime_sec_remainder);
         }
         else
         {
@@ -198,10 +200,10 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                      sizeof(cpu_header_buf),
                      "CPU %.0f MHz | Uptime: %" PRIu64 "d %02" PRIu64 ":%02" PRIu64 ":%02" PRIu64,
                      visual_mhz,
-                     days,
-                     hours,
-                     minutes,
-                     seconds);
+                     uptime_days_remainder,
+                     uptime_hour_remainder,
+                     uptime_min_remainder,
+                     uptime_sec_remainder);
         }
 
         talos_gui_text(cpu_header_buf);
@@ -247,7 +249,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_separator();
         talos_gui_spacing();
 
-        if (ctx->state & TALOS_RUNTIME_STATE_CPU_GROUPED)
+        if (ctx->state & TALOS_RUNTIME_STATE_CPU_GROUPED && !talos_gui_want_capture_keyboard())
         {
             u32 group_size = 2;
             if (state->cpu.core_count > 4)
@@ -451,18 +453,91 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     show_search_popup = true;
                 }
 
+                bool search_confirmed = false;
                 if (show_search_popup)
                 {
-                    render_search_popup(&show_search_popup,
-                                        search_query,
-                                        sizeof(search_query),
-                                        left_column_x + 10.0f,
-                                        60.0f + half_height + padding);
+                    search_confirmed = render_search_popup(&show_search_popup,
+                                                           search_query,
+                                                           sizeof(search_query),
+                                                           left_column_x + 10.0f,
+                                                           60.0f + half_height + padding);
                 }
 
                 i32 filtered_indices[TALOS_PROC_MAX];
-
                 u32 filtered_count = proc_list_filter(proc_list, search_query, filtered_indices);
+
+                if (search_confirmed && filtered_count > 0)
+                {
+                    i32 top_match_idx = filtered_indices[0];
+
+                    const talos_process *tmp_p = &proc_list->procs[top_match_idx];
+
+                    selected_pid = tmp_p->pid;
+                    snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", tmp_p->name);
+                }
+
+                //----------------------------------------------------------------------------------------------------
+                // NAV
+                //----------------------------------------------------------------------------------------------------
+
+                bool nav_up   = (ctx->state & TALOS_RUNTIME_STATE_NAVIGATE_UP) &&
+                                !talos_gui_want_capture_keyboard();
+                bool nav_down = (ctx->state & TALOS_RUNTIME_STATE_NAVIGATE_DOWN) &&
+                                !talos_gui_want_capture_keyboard();
+
+                if (ctx->state & TALOS_RUNTIME_STATE_PROC_LIST_TOP)
+                {
+                    i32 top_idx  = filtered_indices[0];
+                    selected_pid = proc_list->procs[top_idx].pid;
+
+                    ctx->state &=
+                        ~(TALOS_RUNTIME_STATE_PROC_LIST_TOP | TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM);
+                }
+
+                if (ctx->state & TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM)
+
+                {
+                    i32 botm_idx = filtered_indices[filtered_count - 1];
+                    selected_pid = proc_list->procs[botm_idx].pid;
+
+                    talos_gui_set_scroll_here_y(0.6f);
+
+                    ctx->state &=
+                        ~(TALOS_RUNTIME_STATE_PROC_LIST_TOP | TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM);
+                }
+
+                if (filtered_count > 0 && (nav_up || nav_down))
+                {
+                    if (selected_visual_idx < 0 || selected_visual_idx >= (i32) filtered_count)
+                    {
+                        selected_visual_idx = 0;
+                    }
+                    else
+                    {
+                        if (nav_up && selected_visual_idx > 0)
+                        {
+                            selected_visual_idx--;
+                        }
+                        else if (nav_down && selected_visual_idx < (i32) filtered_count - 1)
+                        {
+                            selected_visual_idx++;
+                        }
+                    }
+
+                    i32 target_idx = filtered_indices[selected_visual_idx];
+                    selected_pid   = proc_list->procs[target_idx].pid;
+                    snprintf(selected_proc_name,
+                             sizeof(selected_proc_name),
+                             "%s",
+                             proc_list->procs[target_idx].name);
+
+                    ctx->state &=
+                        ~(TALOS_RUNTIME_STATE_NAVIGATE_UP | TALOS_RUNTIME_STATE_NAVIGATE_DOWN);
+                }
+
+                //----------------------------------------------------------------------------------------------------
+                // CLIPPER
+                //----------------------------------------------------------------------------------------------------
 
                 talos_gui_list_clipper clipper = {0};
                 talos_gui_list_clipper_begin(&clipper, (i32) filtered_count);
@@ -488,6 +563,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                         snprintf(buf, sizeof(buf), "%d", p->pid);
 
                         bool is_selected = (selected_pid == p->pid);
+
+                        if (is_selected)
+                        {
+                            talos_gui_set_scroll_here_y(0.5f);
+                        }
 
                         vx_vec4f pid_text_color;
                         bool     apply_text_color = true;
@@ -517,7 +597,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                             talos_gui_push_style_color(TALOS_GUI_COLOR_TEXT, pid_text_color);
                         }
 
-                        if (talos_gui_selectable(buf, is_selected, 1 << 1))  // span all columns
+                        if (talos_gui_selectable(buf, is_selected, 1 << 1))
                         {
                             selected_pid = p->pid;
                             snprintf(selected_proc_name, sizeof(selected_proc_name), "%s", p->name);
@@ -543,100 +623,156 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                             talos_gui_pop_style_color(1);
                         }
 
-                        //----------------------------------------------------------------------------------------------------
-                        // telemetry window
-
-                        if (is_selected)
-                        {
-                            f32 window_w = (f32) ctx->width * 0.55f;
-                            f32 window_h = (f32) ctx->height * 0.45f;
-
-                            if (window_w < 520.0f)
-                            {
-                                window_w = 520.0f;
-                            }
-
-                            if (window_h < 320.0f)
-                            {
-                                window_h = 320.0f;
-                            }
-
-                            f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
-                            f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
-
-                            talos_gui_set_next_window_pos(pos_x, pos_y);
-                            talos_gui_set_next_window_size(window_w, window_h);
-
-                            char title_buf[VX_BUF_SIZE_128];
-                            snprintf(title_buf,
-                                     sizeof(title_buf),
-                                     "Telemetry Profile: %s (PID: %d)##popup",
-                                     p->name,
-                                     p->pid);
-
-                            if (talos_gui_begin(title_buf,
-                                                nullptr,
-                                                TALOS_GUI_WINDOW_NO_COLLAPSE |
-                                                    TALOS_GUI_WINDOW_NO_RESIZE))
-                            {
-                                char meta_buf[VX_BUF_SIZE_128];
-
-                                talos_gui_text("WORKLOAD HISTORY");
-                                talos_gui_separator();
-
-                                snprintf(meta_buf, sizeof(meta_buf), "Name:  %s", p->name);
-                                talos_gui_text(meta_buf);
-
-                                snprintf(meta_buf,
-                                         sizeof(meta_buf),
-                                         "State: %c  |  Memory: %.1fMB",
-                                         p->state,
-                                         mem_mb);
-                                talos_gui_text(meta_buf);
-
-                                talos_gui_spacing();
-                                talos_gui_separator();
-                                talos_gui_spacing();
-
-                                char graph_overlay[VX_BUF_SIZE_32];
-                                snprintf(graph_overlay,
-                                         sizeof(graph_overlay),
-                                         "Live: %.1f%%",
-                                         p->cpu_usage);
-
-                                f32 graph_w = window_w - 80.0f;
-                                f32 graph_h = window_h - 300.0f;
-
-                                talos_gui_plot_lines("##cpu_profile_graph",
-                                                     proc_history_getter,
-                                                     p,
-                                                     TALOS_HISTORY_COUNT,
-                                                     graph_overlay,
-                                                     0.0f,
-                                                     80.0f,
-                                                     graph_w,
-                                                     graph_h);
-
-                                talos_gui_spacing();
-                                talos_gui_separator();
-                                talos_gui_spacing();
-
-                                if (talos_gui_button("Close") ||
-                                    talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
-                                {
-                                    selected_pid = 0;
-                                }
-
-                                talos_gui_end();
-                            }
-                        }
-
-                        //----------------------------------------------------------------------------------------------------
-
                         talos_gui_pop_id();
                     }
                 }
                 talos_gui_list_clipper_end(&clipper);
+
+                //----------------------------------------------------------------------------------------------------
+                // TELEMETRY WINDOW
+                //----------------------------------------------------------------------------------------------------
+
+                if (selected_pid != 0)
+                {
+                    const talos_process *selected_proc = nullptr;
+
+                    for (u32 i = 0; i < proc_list->count; i++)
+                    {
+                        if (proc_list->procs[i].pid == selected_pid)
+                        {
+                            selected_proc = &proc_list->procs[i];
+                            break;
+                        }
+                    }
+
+                    if (selected_proc == nullptr)
+                    {
+                        if (filtered_count > 0)
+                        {
+                            i32 top_idx  = filtered_indices[0];
+                            selected_pid = proc_list->procs[top_idx].pid;
+                            snprintf(selected_proc_name,
+                                     sizeof(selected_proc_name),
+                                     "%s",
+                                     proc_list->procs[top_idx].name);
+                        }
+                        else
+                        {
+                            selected_pid = 0;
+                        }
+                    }
+                    else
+                    {
+                        f32 window_w = (f32) ctx->width * 0.50f;
+                        f32 window_h = (f32) ctx->height * 0.80f;
+
+                        if (window_w < 520.0f)
+                        {
+                            window_w = 520.0f;
+                        }
+
+                        if (window_h < 320.0f)
+                        {
+                            window_h = 320.0f;
+                        }
+
+                        f32 margin = 10.0f;
+                        f32 pos_x  = (f32) ctx->width - window_w - margin;
+                        f32 pos_y  = 60.0f;
+
+                        talos_gui_set_next_window_pos(pos_x, pos_y);
+                        talos_gui_set_next_window_size(window_w, window_h);
+
+                        char title_buf[VX_BUF_SIZE_128];
+                        snprintf(title_buf,
+                                 sizeof(title_buf),
+                                 "Telemetry Profile: %s (PID: %d)##popup",
+                                 selected_proc->name,
+                                 selected_proc->pid);
+
+                        if (talos_gui_begin(title_buf,
+                                            nullptr,
+                                            TALOS_GUI_WINDOW_NO_COLLAPSE |
+                                                TALOS_GUI_WINDOW_NO_RESIZE))
+                        {
+                            char meta_buf[VX_BUF_SIZE_256];
+                            f32  mem_mb_sel = (f32) selected_proc->mem_rss_kb / 1024.0f;
+
+                            talos_gui_text("WORKLOAD HISTORY");
+                            talos_gui_separator();
+
+                            f32  runtime_sec = selected_proc->runtime_ns / 1000000000.0f;
+                            char cpu_time_buf[VX_BUF_SIZE_64];
+                            i32  total_secs = (i32) runtime_sec;
+                            format_time_buf(total_secs, cpu_time_buf, sizeof(cpu_time_buf));
+
+                            char runtime_buf[VX_BUF_SIZE_64];
+                            f32  proc_start_sec =
+                                (f32) selected_proc->starttime / (f32) ctx->ticks_per_sec;
+                            f32 total_rtime_secs = (f32) uptime_secs - proc_start_sec;
+                            format_time_buf(
+                                (i32) total_rtime_secs, runtime_buf, sizeof(runtime_buf));
+
+                            snprintf(meta_buf,
+                                     sizeof(meta_buf),
+                                     "Name:  %s | CPU Time: %s | Runtime: %s",
+                                     selected_proc->name,
+                                     cpu_time_buf,
+                                     runtime_buf);
+                            talos_gui_text(meta_buf);
+
+                            snprintf(meta_buf,
+                                     sizeof(meta_buf),
+                                     "State: %c  |  Memory: %.1fMB | Migrations: %" PRIu64,
+                                     selected_proc->state,
+                                     mem_mb_sel,
+                                     selected_proc->nr_migrations);
+                            talos_gui_text(meta_buf);
+
+                            snprintf(meta_buf,
+                                     sizeof(meta_buf),
+                                     "Switches: Voluntary: %" PRIu64 " | Involuntary: %" PRIu64,
+                                     selected_proc->switches_voluntary,
+                                     selected_proc->switches_involuntary);
+                            talos_gui_text(meta_buf);
+
+                            talos_gui_spacing();
+                            talos_gui_separator();
+                            talos_gui_spacing();
+
+                            char graph_overlay[VX_BUF_SIZE_32];
+                            snprintf(graph_overlay,
+                                     sizeof(graph_overlay),
+                                     "Live: %.1f%%",
+                                     selected_proc->cpu_usage);
+
+                            f32 graph_w = window_w - 80.0f;
+                            f32 graph_h = window_h - 300.0f;
+
+                            talos_gui_plot_lines("##cpu_profile_graph",
+                                                 proc_history_getter,
+                                                 (void *) selected_proc,
+                                                 TALOS_HISTORY_COUNT,
+                                                 graph_overlay,
+                                                 0.0f,
+                                                 80.0f,
+                                                 graph_w,
+                                                 graph_h);
+
+                            talos_gui_spacing();
+                            talos_gui_separator();
+                            talos_gui_spacing();
+
+                            if (talos_gui_button("Close") ||
+                                talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
+                            {
+                                selected_pid = 0;
+                            }
+
+                            talos_gui_end();
+                        }
+                    }
+                }
 
                 talos_gui_end_table();
             }
@@ -874,7 +1010,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
     if (talos_gui_begin("PowerControlCardWrapper", nullptr, card_flags))
     {
-        f32 button_width = (card_width - 15.0f) * 0.5f;
+        f32 button_width = (card_width - 60.0f) * 0.5f;
 
         vx_vec4f red_button = {.r = 0.75f, .g = 0.15f, .b = 0.15f, .a = 1.0f};
         vx_vec4f red_hover  = {.r = 0.90f, .g = 0.20f, .b = 0.20f, .a = 1.0f};
@@ -1409,8 +1545,10 @@ void talos_destroy_splash_geometry(void)
     }
 }
 
-static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy)
+static bool render_search_popup(bool *open, char *query_buf, size_t buf_size, f32 posx, f32 posy)
 {
+    bool confirmed = false;
+
     talos_gui_set_next_window_size(400.0f, 60.0f);
     talos_gui_set_next_window_pos(posx, posy);
     u32 popup_flags =
@@ -1432,11 +1570,14 @@ static void render_search_popup(bool *open, char *query_buf, size_t buf_size, f3
         }
         else if (talos_gui_is_key_pressed(TALOS_KEY_ENTER))
         {
-            *open = false;
+            *open     = false;
+            confirmed = true;
         }
 
         talos_gui_end();
     }
+
+    return confirmed;
 }
 
 static bool str_fuzzy_match(const char *str, const char *query)
@@ -1501,6 +1642,43 @@ static bool str_starts_with(const char *str, const char *prefix)
     return true;
 }
 
+static bool pid_matches_query(i32 pid, const char *query)
+{
+    char pid_str[16];
+    i32  len = snprintf(pid_str, sizeof(pid_str), "%d", pid);
+
+    const char *q = query;
+
+    size_t q_len = 0;
+    while (q[q_len])
+    {
+        q_len++;
+    }
+
+    if (q_len > (size_t) len)
+    {
+        return false;
+    }
+
+    for (i32 i = 0; i <= len - (i32) q_len; i++)
+    {
+        bool match = true;
+        for (size_t j = 0; j < q_len; j++)
+        {
+            if (pid_str[i + j] != query[j])
+            {
+                match = false;
+                break;
+            }
+        }
+        if (match)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 static u32 proc_list_filter(const talos_proc_list *proc_list,
                             const char            *search_query,
                             i32                   *out_filtered_indices)
@@ -1518,7 +1696,8 @@ static u32 proc_list_filter(const talos_proc_list *proc_list,
 
     for (u32 i = 0; i < proc_list->count; i++)
     {
-        if (str_starts_with(proc_list->procs[i].name, search_query))
+        if (str_starts_with(proc_list->procs[i].name, search_query) ||
+            pid_matches_query(proc_list->procs[i].pid, search_query))
         {
             out_filtered_indices[filtered_count++] = (i32) i;
         }
@@ -1526,7 +1705,8 @@ static u32 proc_list_filter(const talos_proc_list *proc_list,
 
     for (u32 i = 0; i < proc_list->count; i++)
     {
-        if (str_starts_with(proc_list->procs[i].name, search_query))
+        if (str_starts_with(proc_list->procs[i].name, search_query) ||
+            pid_matches_query(proc_list->procs[i].pid, search_query))
         {
             continue;
         }
@@ -1639,4 +1819,30 @@ static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details)
     }
 
     talos_gui_pop_style_color(1);
+}
+
+static void format_time_buf(i32 total_secs, char *out_buf, size_t size)
+{
+    if (out_buf == nullptr || size == 0)
+    {
+        return;
+    }
+
+    if (total_secs < 60)
+    {
+        snprintf(out_buf, size, "%ds", total_secs);
+    }
+    else if (total_secs < 3600)
+    {
+        i32 mins = total_secs / 60;
+        i32 secs = total_secs % 60;
+        snprintf(out_buf, size, "%dm %ds", mins, secs);
+    }
+    else
+    {
+        i32 hrs  = total_secs / 3600;
+        i32 mins = (total_secs % 3600) / 60;
+        i32 secs = total_secs % 60;
+        snprintf(out_buf, size, "%dh %dm %ds", hrs, mins, secs);
+    }
 }

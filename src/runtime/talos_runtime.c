@@ -34,6 +34,8 @@ void talos_runtime(struct talos_ctx *ctx)
 
     talos_cpu_init(&cpu_state.cpu);
     talos_temps_init(&cpu_state.temps);
+    talos_proc_init(&cpu_state.proc_state.buffers[0]);
+
     talos_update_start(&cpu_state);
 
     SDL_Color bronze_color = {.r = 54, .g = 47, .b = 40, .a = 255};

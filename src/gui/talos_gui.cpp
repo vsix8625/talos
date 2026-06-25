@@ -63,7 +63,7 @@ TALOS_API int talos_gui_init(void *window, void *gl_ctx, int width)
     }
 
     ImGuiStyle &style      = GetStyle();
-    style.WindowRounding   = 12.0f;
+    style.WindowRounding   = 24.0f;
     style.FrameRounding    = 6.0f;
     style.ChildRounding    = 8.0f;
     style.WindowBorderSize = 1.0f;
@@ -579,4 +579,26 @@ TALOS_API void talos_gui_text_wrapped(const char *fmt, ...)
     TextWrappedV(fmt, args);
 
     va_end(args);
+}
+
+TALOS_API f32 talos_gui_style_get_window_border_size(void)
+{
+    ImGuiStyle style = GetStyle();
+    return style.WindowBorderSize;
+}
+
+TALOS_API void talos_gui_set_scroll_here_y(f32 y_ratio)
+{
+    SetScrollHereY(y_ratio);
+}
+
+TALOS_API f32 talos_gui_get_text_line_height_with_spacing(void)
+{
+    return GetTextLineHeightWithSpacing();
+}
+
+TALOS_API void talos_gui_set_scroll_from_index(i32 visual_row_idx)
+{
+    f32 row_height = GetTextLineHeightWithSpacing();
+    SetScrollY((f32) visual_row_idx * row_height);
 }

@@ -267,6 +267,11 @@ TALOS_API
 
     void talos_gui_text_wrapped(const char *fmt, ...);
 
+    f32  talos_gui_style_get_window_border_size(void);
+    void talos_gui_set_scroll_here_y(f32 y_ratio);
+    f32  talos_gui_get_text_line_height_with_spacing(void);
+    void talos_gui_set_scroll_from_index(i32 visual_row_idx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -21,6 +21,8 @@ static bool is_pid_dir(const char *name)
     return name[0] != '\0';
 }
 
+static u64 g_kb_per_page = 0;
+
 static bool read_proc_stat(i32 pid, talos_process *out)
 {
     char path[VX_BUF_SIZE_256];
@@ -40,12 +42,10 @@ static bool read_proc_stat(i32 pid, talos_process *out)
     }
     fclose(fp);
 
-    // parse pid
     out->pid = pid;
 
-    // find comm between ( and )
     char *open  = strchr(line, '(');
-    char *close = strrchr(line, ')');  // strrchr handles names with '(' in them
+    char *close = strrchr(line, ')');
     if (open == nullptr || close == nullptr)
     {
         return false;
@@ -63,29 +63,100 @@ static bool read_proc_stat(i32 pid, talos_process *out)
 
     char state;
     i32  ppid;
-    u64  utime, stime;
+    u64  utime, stime, starttime;
 
     u64 rss_pages = 0;
 
     i32 parsed = sscanf(close + 2,
-                        "%c %d %*d %*d %*d %*d %*d %*d %*d %*d %*d "
-                        "%" SCNu64 " %" SCNu64 " %*d %*d %*d %*d %*d %*d %*d %*d "
+                        "%c %d "
+                        "%*d %*d %*d %*d %*d %*d %*d %*d %*d "
+                        "%" SCNu64 " %" SCNu64 " "
+                        "%*d %*d %*d %*d %*d %*d "
+                        "%" SCNu64 " "
+                        "%*d "
                         "%" SCNu64,
                         &state,
                         &ppid,
                         &utime,
                         &stime,
+                        &starttime,
                         &rss_pages);
 
-    if (parsed != 5)
+    if (parsed != 6)
     {
         return false;
     }
 
-    out->state      = state;
-    out->utime      = utime;
-    out->stime      = stime;
-    out->mem_rss_kb = rss_pages * (u64) getpagesize() / 1024;
+    out->state     = state;
+    out->utime     = utime;
+    out->stime     = stime;
+    out->starttime = starttime;
+
+    out->mem_rss_kb = rss_pages * (u64) g_kb_per_page;
+
+    //----------------------------------------------------------------------------------------------------
+    // schedstat
+    //----------------------------------------------------------------------------------------------------
+
+    snprintf(path, sizeof(path), "/proc/%d/sched", pid);
+
+    fp = fopen(path, "r");
+    if (fp != nullptr)
+    {
+        char   sched_buf[VX_BUF_SIZE_2048];
+        size_t bytes_read = fread(sched_buf, 1, sizeof(sched_buf) - 1, fp);
+        fclose(fp);
+
+        if (bytes_read > 0)
+        {
+            sched_buf[bytes_read] = '\0';
+
+            char *match;
+
+            match = strstr(sched_buf, "se.nr_migrations");
+            if (match != nullptr)
+            {
+                sscanf(match, "se.nr_migrations : %" SCNu64, &out->nr_migrations);
+            }
+
+            match = strstr(sched_buf, "nr_voluntary_switches");
+            if (match != nullptr)
+            {
+                sscanf(match, "nr_voluntary_switches : %" SCNu64, &out->switches_voluntary);
+            }
+
+            match = strstr(sched_buf, "nr_involuntary_switches");
+            if (match != nullptr)
+            {
+                sscanf(match, "nr_involuntary_switches : %" SCNu64, &out->switches_involuntary);
+            }
+        }
+    }
+    else
+    {
+        out->nr_migrations        = 0;
+        out->switches_voluntary   = 0;
+        out->switches_involuntary = 0;
+    }
+
+    out->runtime_ns = 0;
+    snprintf(path, sizeof(path), "/proc/%d/schedstat", pid);
+    fp = fopen(path, "r");
+    if (fp != nullptr)
+    {
+        char   schedstat_buf[VX_BUF_SIZE_512];
+        size_t bytes_read = fread(schedstat_buf, 1, sizeof(schedstat_buf) - 1, fp);
+        fclose(fp);
+
+        if (bytes_read > 0)
+        {
+            schedstat_buf[bytes_read] = '\0';
+            sscanf(schedstat_buf, "%" SCNu64, &out->runtime_ns);
+        }
+    }
+
+    //----------------------------------------------------------------------------------------------------
+
     return true;
 }
 
@@ -152,6 +223,11 @@ bool talos_proc_init(talos_proc_list *list)
     if (list == nullptr)
     {
         return false;
+    }
+
+    if (!g_kb_per_page)
+    {
+        g_kb_per_page = sysconf(_SC_PAGESIZE) / 1024;
     }
 
     memset(list, 0, sizeof(*list));

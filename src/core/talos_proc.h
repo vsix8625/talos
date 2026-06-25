@@ -1,10 +1,11 @@
 #pragma once
 #include "vx_cpu.h"
 
-#define TALOS_PROC_NAME_MAX 64
-#define TALOS_PROC_MAX      512
+#define TALOS_PROC_NAME_MAX    64
+#define TALOS_PROC_MAX         512
+#define TALOS_PROC_HISTORY_MAX 60
 
-typedef struct
+typedef struct talos_process_s
 {
     i32  pid;
     char name[TALOS_PROC_NAME_MAX];
@@ -12,9 +13,16 @@ typedef struct
     u64  mem_rss_kb;
     u64  utime;
     u64  stime;
+    u64  starttime;
     f32  cpu_usage;
 
-    f32 cpu_history[60];
+    // sched
+    u64 runtime_ns;
+    u64 nr_migrations;
+    u64 switches_voluntary;
+    u64 switches_involuntary;
+
+    f32 cpu_history[TALOS_PROC_HISTORY_MAX];
     i32 history_head;
 } talos_process;
 

@@ -14,20 +14,25 @@ extern struct talos_ctx g_talos_ctx;
 
 typedef enum talos_rtime_state : u32
 {
-    TALOS_RUNTIME_STATE_OFF           = 0,
-    TALOS_RUNTIME_STATE_INITIALIZED   = (1 << 0),
-    TALOS_RUNTIME_STATE_RUNNING       = (1 << 2),
-    TALOS_RUNTIME_STATE_REBOOT        = (1 << 3),
-    TALOS_RUNTIME_STATE_FOCUSED       = (1 << 4),
-    TALOS_RUNTIME_STATE_CPU_GROUPED   = (1 << 5),
-    TALOS_RUNTIME_STATE_ABOUT_WINDOW  = (1 << 6),
-    TALOS_RUNTIME_STATE_SPLASH        = (1 << 7),
-    TALOS_RUNTIME_STATE_LIMIT_FPS     = (1 << 8),
-    TALOS_RUNTIME_STATE_BOOST_FPS     = (1 << 9),
-    TALOS_RUNTIME_STATE_FAN_SUPPORTED = (1 << 10),
-    TALOS_RUNTIME_STATE_GOV_LIMIT     = (1 << 11),
-    TALOS_RUNTIME_STATE_GOV_PERF      = (1 << 12),
-    TALOS_RUNTIME_STATE_GOV_NORM      = (1 << 13),
+    TALOS_RUNTIME_STATE_OFF              = 0,
+    TALOS_RUNTIME_STATE_INITIALIZED      = (1 << 0),
+    TALOS_RUNTIME_STATE_RUNNING          = (1 << 2),
+    TALOS_RUNTIME_STATE_REBOOT           = (1 << 3),
+    TALOS_RUNTIME_STATE_FOCUSED          = (1 << 4),
+    TALOS_RUNTIME_STATE_CPU_GROUPED      = (1 << 5),
+    TALOS_RUNTIME_STATE_ABOUT_WINDOW     = (1 << 6),
+    TALOS_RUNTIME_STATE_SPLASH           = (1 << 7),
+    TALOS_RUNTIME_STATE_LIMIT_FPS        = (1 << 8),
+    TALOS_RUNTIME_STATE_BOOST_FPS        = (1 << 9),
+    TALOS_RUNTIME_STATE_FAN_SUPPORTED    = (1 << 10),
+    TALOS_RUNTIME_STATE_GOV_LIMIT        = (1 << 11),
+    TALOS_RUNTIME_STATE_GOV_PERF         = (1 << 12),
+    TALOS_RUNTIME_STATE_GOV_NORM         = (1 << 13),
+    TALOS_RUNTIME_STATE_PERF_RECORD      = (1 << 14),
+    TALOS_RUNTIME_STATE_NAVIGATE_UP      = (1 << 15),
+    TALOS_RUNTIME_STATE_NAVIGATE_DOWN    = (1 << 16),
+    TALOS_RUNTIME_STATE_PROC_LIST_TOP    = (1 << 17),
+    TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM = (1 << 18),
 } talos_rtime_state;
 
 #define TALOS_FAN_STATE_BALANCED    (1 << 0)
@@ -57,6 +62,7 @@ struct talos_ctx
 
     f32 dt;
     u64 last_time;
+    u64 ticks_per_sec;
 
     u32 target_fps_ms;
 
