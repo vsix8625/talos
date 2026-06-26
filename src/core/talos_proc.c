@@ -1,6 +1,8 @@
 #include "talos_proc.h"
+#include "globals.h"
+#include "mem_arena.h"
 #include "vx_io.h"
-#include "vx_time.h"
+#include "vx_thread.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -284,7 +286,7 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
         {
             if (prev_list->procs[i].pid == pid)
             {
-                memcpy(p->cpu_history, prev_list->procs[i].cpu_history, sizeof(p->cpu_history));
+                p->cpu_history  = prev_list->procs[i].cpu_history;
                 p->history_head = prev_list->procs[i].history_head;
 
                 u64 current_ticks  = p->utime + p->stime;
@@ -302,10 +304,17 @@ void talos_proc_update(talos_proc_state *state, u64 total_ticks_delta)
 
                 p->cpu_history[p->history_head] = p->cpu_usage;
 
-                p->history_head = (p->history_head + 1) % 60;
+                p->history_head = (p->history_head + 1) % TALOS_PROC_HISTORY_MAX;
 
                 break;
             }
+        }
+
+        if (p->cpu_history == nullptr)
+        {
+            p->cpu_history =
+                mem_arena_zalloc(g_talos_global_arena, TALOS_PROC_HISTORY_MAX * sizeof(f32));
+            p->history_head = 0;
         }
 
         next_list->count++;

@@ -7,7 +7,6 @@
 #include "talos_update.h"
 #include "talos_temp.h"
 #include "talos_input.h"
-#include "vx_process.h"
 #include "vx_time.h"
 #include "glad.h"
 
@@ -30,7 +29,7 @@ void talos_runtime(struct talos_ctx *ctx)
 
     ctx->state |= TALOS_RUNTIME_STATE_SPLASH;
 
-    talos_state cpu_state = {0};
+    talos_state cpu_state = {.shutdown_fd = -1};
 
     talos_cpu_init(&cpu_state.cpu);
     talos_temps_init(&cpu_state.temps);
@@ -39,6 +38,8 @@ void talos_runtime(struct talos_ctx *ctx)
     talos_update_start(&cpu_state);
 
     SDL_Color bronze_color = {.r = 54, .g = 47, .b = 40, .a = 255};
+
+    SDL_Color renderer_color = bronze_color;
 
     ctx->target_fps_ms  = TALOS_TARGET_FPS_30;
     ctx->state         |= TALOS_RUNTIME_STATE_FOCUSED;
@@ -79,7 +80,35 @@ void talos_runtime(struct talos_ctx *ctx)
 
         // --------------------------------------------
         // RENDER
-        talos_gl_begin(ctx, bronze_color);
+
+        if ((ctx->state & TALOS_RUNTIME_STATE_SHUTTING_DOWN))
+        {
+            u8 n = 1;
+
+            static bool shutdown_initialized = false;
+
+            if (!shutdown_initialized)
+            {
+                splash_timer         = 0.0f;
+                shutdown_initialized = true;
+            }
+
+            renderer_color.r = (renderer_color.r > n) ? renderer_color.r - n : 0;
+            renderer_color.g = (renderer_color.g > n) ? renderer_color.g - n : 0;
+            renderer_color.b = (renderer_color.b > n) ? renderer_color.b - n : 0;
+            renderer_color.a = 255;
+
+            active_stage.fn      = talos_render_stage_splash;
+            active_stage.data    = &splash_timer;
+            ctx->render_dispatch = active_stage.fn;
+
+            if (renderer_color.r == 0 && renderer_color.g == 0 && renderer_color.b == 0)
+            {
+                ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
+            }
+        }
+
+        talos_gl_begin(ctx, renderer_color);
         talos_gui_begin_frame();
 
         ctx->render_dispatch(ctx, active_stage.data);
@@ -99,6 +128,7 @@ void talos_runtime(struct talos_ctx *ctx)
         // --------------------------------------------
 
         if (!(ctx->state & TALOS_RUNTIME_STATE_SPLASH) &&
+            !(ctx->state & TALOS_RUNTIME_STATE_SHUTTING_DOWN) &&
             active_stage.fn == talos_render_stage_splash)
         {
             active_stage =

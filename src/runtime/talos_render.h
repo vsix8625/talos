@@ -4,6 +4,12 @@
 
 struct talos_ctx;
 
+typedef struct
+{
+    f32 history[TALOS_PROC_HISTORY_MAX];
+    i32 history_head;
+} talos_proc_history_snapshot;
+
 void talos_runtime(struct talos_ctx *ctx);
 
 void talos_ui_render_dashboard(struct talos_ctx *ctx,

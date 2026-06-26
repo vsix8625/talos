@@ -24,4 +24,5 @@ typedef struct
     talos_proc_state proc_state;
 
     atomic_bool running;
+    i32         shutdown_fd;
 } talos_state;

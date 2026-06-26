@@ -3,7 +3,7 @@
 
 #define TALOS_PROC_NAME_MAX    64
 #define TALOS_PROC_MAX         512
-#define TALOS_PROC_HISTORY_MAX 60
+#define TALOS_PROC_HISTORY_MAX 3600
 
 typedef struct talos_process_s
 {
@@ -22,8 +22,8 @@ typedef struct talos_process_s
     u64 switches_voluntary;
     u64 switches_involuntary;
 
-    f32 cpu_history[TALOS_PROC_HISTORY_MAX];
-    i32 history_head;
+    f32 *cpu_history;
+    i32  history_head;
 } talos_process;
 
 typedef enum

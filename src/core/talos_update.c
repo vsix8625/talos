@@ -2,7 +2,9 @@
 #include "globals.h"
 #include "vx_io.h"
 
-#include <time.h>
+#include <sys/eventfd.h>
+#include <poll.h>
+#include <errno.h>
 
 static bool net_find_active(char *out_buf, size_t out_len);
 static bool disk_find_active(char *out_disk, size_t out_len);
@@ -11,7 +13,6 @@ static void *update_loop(void *arg)
 {
     talos_state *state = (talos_state *) arg;
 
-    struct timespec wake;
     while (atomic_load(&state->running))
     {
         talos_cpu_update(&state->cpu);
@@ -22,26 +23,27 @@ static void *update_loop(void *arg)
         talos_disk_read(&state->disk, state->disk_device);
         talos_net_read(&state->net, state->net_interface);
 
-        clock_gettime(CLOCK_MONOTONIC, &wake);
-        if (g_talos_ctx.state & TALOS_RUNTIME_STATE_BOOST_FPS)
-        {
-            wake.tv_nsec += 500 * 1'000'000;
+        i32 timeout_ms = 1000;
 
-            if (wake.tv_nsec >= 1'000'000'000)
+        struct pollfd pfd = {.fd = state->shutdown_fd, .events = POLLIN};
+
+        i32 ret = poll(&pfd, 1, timeout_ms);
+
+        if (ret < 0)
+        {
+            if (errno == EINTR)
             {
-                wake.tv_sec  += 1;
-                wake.tv_nsec -= 1'000'000'000;
+                continue;  // interrupted by an OS signal
             }
+
+            break;  // error
         }
-        else if (g_talos_ctx.state & TALOS_RUNTIME_STATE_LIMIT_FPS)
+
+        if (ret > 0 && (pfd.revents & POLLIN))
         {
-            wake.tv_sec += 2;
+            // shutdown event read
+            break;
         }
-        else
-        {
-            wake.tv_sec += 1;
-        }
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wake, NULL);
     }
 
     return nullptr;
@@ -71,10 +73,19 @@ bool talos_update_start(talos_state *state)
     state->proc_state.buffers[0].count = 0;
     state->proc_state.buffers[1].count = 0;
 
+    state->shutdown_fd = eventfd(0, EFD_NONBLOCK);
+
+    if (state->shutdown_fd < 0)
+    {
+        atomic_store(&state->running, false);
+        return false;
+    }
+
     if (vx_thread_create(&state->thread, update_loop, state) != VX_OK)
     {
         vx_errlog("%s: failed to create update thread", __func__);
         atomic_store(&state->running, false);
+        close(state->shutdown_fd);
         return false;
     }
 
@@ -89,7 +100,18 @@ void talos_update_stop(talos_state *state)
     }
 
     atomic_store(&state->running, false);
+
+    u64 wake_signal = 1;
+    (void) write(state->shutdown_fd, &wake_signal, sizeof(wake_signal));
+
     vx_thread_join(&state->thread);
+
+    // close the fd after thread is dead
+    if (state->shutdown_fd >= 0)
+    {
+        close(state->shutdown_fd);
+        state->shutdown_fd = -1;
+    }
 }
 
 static bool net_find_active(char *out_buf, size_t out_len)

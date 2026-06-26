@@ -42,7 +42,7 @@ static i32 talos_init(void)
         result = VX_EXIT_FAILURE;
     }
 
-    g_talos_global_arena = mem_arena_create("global-arena", VX_MiB(2));
+    g_talos_global_arena = mem_arena_create("global-arena", VX_MiB(8));
 
     if (g_talos_global_arena == nullptr)
     {
@@ -69,7 +69,8 @@ static i32 talos_init(void)
         }
     }
 
-    g_talos_ctx.ticks_per_sec = sysconf(_SC_CLK_TCK);
+    g_talos_ctx.ticks_per_sec   = sysconf(_SC_CLK_TCK);
+    g_talos_ctx.history_samples = 60;
 
     if (!talos_gui_init(g_talos_ctx.window, g_talos_ctx.gl_context, mode_width))
     {

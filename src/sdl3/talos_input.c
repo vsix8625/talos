@@ -12,6 +12,15 @@
 static void handle_fancontrol(struct talos_ctx *ctx);
 static void handle_governor(struct talos_ctx *ctx);
 
+static inline void initiate_shutdown(struct talos_ctx *ctx, talos_state *cpu_state)
+{
+    if (ctx->state & TALOS_RUNTIME_STATE_RUNNING)
+    {
+        talos_update_stop(cpu_state);
+        ctx->state |= (TALOS_RUNTIME_STATE_SHUTTING_DOWN | TALOS_RUNTIME_STATE_SPLASH);
+    }
+}
+
 void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
 {
     SDL_Event event;
@@ -24,7 +33,7 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
         {
             case SDL_EVENT_QUIT:
             {
-                ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING;
+                initiate_shutdown(ctx, cpu_state);
                 talos_update_stop(cpu_state);
                 break;
             }
@@ -89,6 +98,8 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                         break;
                     }
 
+                    case SDLK_F6: ctx->state |= TALOS_RUNTIME_STATE_HISTORY_SAMPLES_TOGGLE; break;
+
                     case SDLK_F11:
                     {
                         u32 flags = SDL_GetWindowFlags(ctx->window);
@@ -103,9 +114,12 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
                         break;
                     }
 
-                    case SDLK_F12: ctx->state &= ~TALOS_RUNTIME_STATE_RUNNING; break;
-
-                    case SDLK_O: ctx->state ^= TALOS_RUNTIME_STATE_CPU_GROUPED; break;
+                    case SDLK_F12:
+                    {
+                        initiate_shutdown(ctx, cpu_state);
+                        talos_update_stop(cpu_state);
+                        break;
+                    }
 
                     case SDLK_G:
                     {
@@ -113,7 +127,7 @@ void talos_input_poll(struct talos_ctx *ctx, talos_state *cpu_state)
 
                         if (mod & SDL_KMOD_SHIFT)
                         {
-                            ctx->state |= TALOS_RUNTIME_STATE_PROC_LIST_BOTTOM;
+                            ctx->state ^= TALOS_RUNTIME_STATE_TELEMETRY_FULLSCREEN;
                         }
                         else
                         {

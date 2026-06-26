@@ -3,7 +3,7 @@ cflags: -Wall -Wextra -Werror -std=c23 -pthread
 
 major: 0
 minor: 12
-patch: 0
+patch: 2
 
 if(__sk_version_minor__ < 8)
 {

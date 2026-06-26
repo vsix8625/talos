@@ -5,6 +5,7 @@
 #include "glad.h"
 #include "talos_input.h"
 #include "talos_state.h"
+#include "talos_render.h"
 
 #include <SDL3/SDL_timer.h>
 #include <inttypes.h>
@@ -29,18 +30,28 @@ static u32  proc_list_filter(const talos_proc_list *proc_list,
                              const char            *search_query,
                              i32                   *out_filtered_indices);
 
-static void render_cpu_details(struct talos_ctx *ctx, int *show_cpu_details);
+static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details);
 
 //----------------------------------------------------------------------------------------------------
 
-static float proc_history_getter(void *data, int idx)
+static f32 proc_history_getter(void *data, i32 idx)
 {
-    talos_process *p = (talos_process *) data;
+    talos_proc_history_snapshot *snap = (talos_proc_history_snapshot *) data;
 
-    i32 actual_idx = (p->history_head + idx) % TALOS_HISTORY_COUNT;
+    if (snap == nullptr)
+    {
+        return 0.0f;
+    }
 
-    return p->cpu_history[actual_idx];
+    // flip for left to right plotline
+    i32 flip_idx = snap->history_head - idx;
+
+    i32 actual_idx = (flip_idx + TALOS_PROC_HISTORY_MAX) % TALOS_PROC_HISTORY_MAX;
+
+    return snap->history[actual_idx];
 }
+
+//----------------------------------------------------------------------------------------------------
 
 static inline vx_vec4f ui_calculate_load_color(f32 fraction)
 {
@@ -249,7 +260,14 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_separator();
         talos_gui_spacing();
 
-        if (ctx->state & TALOS_RUNTIME_STATE_CPU_GROUPED && !talos_gui_want_capture_keyboard())
+        static bool show_clusters = false;
+
+        if (talos_gui_is_key_pressed(TALOS_KEY_O) && !talos_gui_want_capture_keyboard())
+        {
+            show_clusters ^= true;
+        }
+
+        if (show_clusters)
         {
             u32 group_size = 2;
             if (state->cpu.core_count > 4)
@@ -356,11 +374,11 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 u32 pid_col_flags =
                     TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED | TALOS_TABLE_COLUMN_FLAG_DEFAULT_SORT;
 
-                talos_gui_table_setup_column("PID", pid_col_flags, 50.0f);
+                talos_gui_table_setup_column("PID", pid_col_flags, 80.0f);
                 talos_gui_table_setup_column("Name", TALOS_TABLE_COLUMN_FLAG_WIDTH_STRETCH, 0.0f);
-                talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 70.0f);
-                talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 140.0f);
-                talos_gui_table_setup_column("State", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 45.0f);
+                talos_gui_table_setup_column("CPU%", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 80.0f);
+                talos_gui_table_setup_column("MEM", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 120.0f);
+                talos_gui_table_setup_column("State", TALOS_TABLE_COLUMN_FLAG_WIDTH_FIXED, 50.0f);
 
                 talos_gui_table_headers_row();
 
@@ -663,8 +681,23 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                     }
                     else
                     {
-                        f32 window_w = (f32) ctx->width * 0.50f;
-                        f32 window_h = (f32) ctx->height * 0.80f;
+                        f32 window_w = 0.0f;
+                        f32 window_h = 0.0f;
+                        f32 pos_x    = 0.0f;
+                        f32 pos_y    = 0.0f;
+                        f32 margin   = 10.0f;
+                        if (ctx->state & TALOS_RUNTIME_STATE_TELEMETRY_FULLSCREEN)
+                        {
+                            window_w = (f32) ctx->width;
+                            window_h = (f32) ctx->height;
+                        }
+                        else
+                        {
+                            window_w = (f32) ctx->width * 0.50f;
+                            window_h = (f32) ctx->height * 0.80f;
+                            pos_x    = (f32) ctx->width - window_w - margin;
+                            pos_y    = 60.0f;
+                        }
 
                         if (window_w < 520.0f)
                         {
@@ -675,10 +708,6 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                         {
                             window_h = 320.0f;
                         }
-
-                        f32 margin = 10.0f;
-                        f32 pos_x  = (f32) ctx->width - window_w - margin;
-                        f32 pos_y  = 60.0f;
 
                         talos_gui_set_next_window_pos(pos_x, pos_y);
                         talos_gui_set_next_window_size(window_w, window_h);
@@ -736,6 +765,63 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                      selected_proc->switches_involuntary);
                             talos_gui_text(meta_buf);
 
+                            //-------------------------------------------------------------------------------
+                            // AVG VALUES
+
+                            f32 telemetry_avg_lifetime_cpu = 0.0f;
+                            if (total_rtime_secs > 0.0f)
+                            {
+                                u64 total_proc_ticks = selected_proc->utime + selected_proc->stime;
+
+                                f32 total_proc_secs =
+                                    (f32) total_proc_ticks / (f32) ctx->ticks_per_sec;
+
+                                telemetry_avg_lifetime_cpu =
+                                    (total_proc_secs / total_rtime_secs) * 100.0f;
+                            }
+
+                            //--------------------------------
+
+                            f32 graph_w = window_w - 80.0f;
+                            f32 graph_h = window_h - 300.0f;
+
+                            //--------------------------------
+                            // F6 key pressed
+
+                            if (ctx->state & TALOS_RUNTIME_STATE_HISTORY_SAMPLES_TOGGLE)
+                            {
+                                ctx->history_samples += (u32) graph_w / 10;
+
+                                if (ctx->history_samples > (u32) graph_w)
+                                {
+                                    ctx->history_samples = 30;
+                                }
+
+                                ctx->state &= ~TALOS_RUNTIME_STATE_HISTORY_SAMPLES_TOGGLE;
+                            }
+
+                            //--------------------------------
+
+                            // rolling_avg
+                            f32 sum = 0.0f;
+
+                            for (u32 i = 0; i < ctx->history_samples; i++)
+                            {
+                                sum += selected_proc->cpu_history[i];
+                            }
+
+                            sum /= (f32) ctx->history_samples;
+
+                            //-------------------------------------------------------------------------------
+
+                            snprintf(meta_buf,
+                                     sizeof(meta_buf),
+                                     "Lifetime average: %5.1f%% | Samples(%3u) average: %5.1f%%",
+                                     telemetry_avg_lifetime_cpu,
+                                     ctx->history_samples,
+                                     sum);
+                            talos_gui_text(meta_buf);
+
                             talos_gui_spacing();
                             talos_gui_separator();
                             talos_gui_spacing();
@@ -746,18 +832,32 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                      "Live: %.1f%%",
                                      selected_proc->cpu_usage);
 
-                            f32 graph_w = window_w - 80.0f;
-                            f32 graph_h = window_h - 300.0f;
+                            //------------------------------
+                            // history snapshot
+
+                            talos_proc_history_snapshot snap;
+
+                            memcpy(snap.history,
+                                   selected_proc->cpu_history,
+                                   TALOS_PROC_HISTORY_MAX * sizeof(f32));
+                            snap.history_head = selected_proc->history_head;
+
+                            //------------------------------
+
+                            vx_vec4f line_color = {.r = 0.15f, .g = 0.85f, .b = 0.15f, .a = 1.0f};
+                            talos_gui_push_style_color(TALOS_GUI_COLOR_PLOTLINES, line_color);
 
                             talos_gui_plot_lines("##cpu_profile_graph",
                                                  proc_history_getter,
-                                                 (void *) selected_proc,
-                                                 TALOS_HISTORY_COUNT,
+                                                 (void *) &snap,
+                                                 ctx->history_samples,
                                                  graph_overlay,
                                                  0.0f,
-                                                 80.0f,
+                                                 100.0f,
                                                  graph_w,
                                                  graph_h);
+
+                            talos_gui_pop_style_color(1);
 
                             talos_gui_spacing();
                             talos_gui_separator();
@@ -1272,7 +1372,11 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
 
         talos_gui_text_disabled("Operational Hotkeys:");
         talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
-        talos_gui_text("[g]       Change CPU core layout view");
+        talos_gui_text("[UP, k]   Go up in the process list");
+        talos_gui_text("[Down, j] Go down in the process list");
+        talos_gui_text("[g]       Select top process in the list");
+        talos_gui_text("[G]       Select bottom process in the list");
+        talos_gui_text("[o]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
         talos_gui_text("[F1]      Toggle About window");
         talos_gui_text("[F2]      Toggle Limited/Normal modes");
@@ -1392,7 +1496,7 @@ void talos_render_stage_splash(struct talos_ctx *ctx, void *data)
 
     *timer += ctx->dt;
 
-    const f32 MAX_SPLASH_TIME = 1.8f;
+    const f32 MAX_SPLASH_TIME = 1.7f;
 
     f32 progress = *timer / MAX_SPLASH_TIME;
     if (progress > 1.0f)
@@ -1836,13 +1940,39 @@ static void format_time_buf(i32 total_secs, char *out_buf, size_t size)
     {
         i32 mins = total_secs / 60;
         i32 secs = total_secs % 60;
-        snprintf(out_buf, size, "%dm %ds", mins, secs);
+
+        if (secs > 0)
+        {
+            snprintf(out_buf, size, "%dm %ds", mins, secs);
+        }
+        else
+        {
+            snprintf(out_buf, size, "%dm", mins);
+        }
     }
     else
     {
         i32 hrs  = total_secs / 3600;
         i32 mins = (total_secs % 3600) / 60;
         i32 secs = total_secs % 60;
-        snprintf(out_buf, size, "%dh %dm %ds", hrs, mins, secs);
+        if (secs > 0 && mins > 0)
+        {
+            snprintf(out_buf, size, "%dh %dm %ds", hrs, mins, secs);
+        }
+        else if (mins > 0)
+        {
+            if (secs > 0)
+            {
+                snprintf(out_buf, size, "%dh %dm %ds", hrs, mins, secs);
+            }
+            else
+            {
+                snprintf(out_buf, size, "%dh %dm", hrs, mins);
+            }
+        }
+        else
+        {
+            snprintf(out_buf, size, "%dh", hrs);
+        }
     }
 }
