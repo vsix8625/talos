@@ -296,6 +296,8 @@ TALOS_API
     f32  talos_gui_get_text_line_height_with_spacing(void);
     void talos_gui_set_scroll_from_index(i32 visual_row_idx);
 
+    void talos_gui_set_window_focus(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

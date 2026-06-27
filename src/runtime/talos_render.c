@@ -239,7 +239,7 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
         if (talos_gui_button("[i]") || talos_gui_is_key_pressed(TALOS_KEY_F10))
         {
-            show_cpu_details = 1;
+            show_cpu_details = !show_cpu_details;
         }
 
         if (show_cpu_details)
@@ -469,6 +469,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                 if (talos_gui_is_key_pressed(TALOS_KEY_SLASH) && !show_search_popup)
                 {
                     show_search_popup = true;
+
+                    talos_gui_set_window_focus("ProcessCardWrapper");
                 }
 
                 bool search_confirmed = false;
@@ -725,9 +727,15 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                                                 TALOS_GUI_WINDOW_NO_RESIZE))
                         {
                             char meta_buf[VX_BUF_SIZE_256];
-                            f32  mem_mb_sel = (f32) selected_proc->mem_rss_kb / 1024.0f;
 
-                            talos_gui_text("WORKLOAD HISTORY");
+                            f32  mem_mb_sel = (f32) selected_proc->mem_rss_kb / 1024.0f;
+                            char tlmtry_header_buf[VX_BUF_SIZE_32];
+                            snprintf(tlmtry_header_buf,
+                                     sizeof(tlmtry_header_buf),
+                                     "Memory: %.1fMB | State: %c",
+                                     mem_mb_sel,
+                                     selected_proc->state);
+                            talos_gui_text(tlmtry_header_buf);
                             talos_gui_separator();
 
                             f32  runtime_sec = selected_proc->runtime_ns / 1000000000.0f;
@@ -744,17 +752,14 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
 
                             snprintf(meta_buf,
                                      sizeof(meta_buf),
-                                     "Name:  %s | CPU Time: %s | Runtime: %s",
-                                     selected_proc->name,
+                                     "CPU Time: %s | Runtime: %s",
                                      cpu_time_buf,
                                      runtime_buf);
                             talos_gui_text(meta_buf);
 
                             snprintf(meta_buf,
                                      sizeof(meta_buf),
-                                     "State: %c  |  Memory: %.1fMB | Migrations: %" PRIu64,
-                                     selected_proc->state,
-                                     mem_mb_sel,
+                                     "Migrations: %" PRIu64,
                                      selected_proc->nr_migrations);
                             talos_gui_text(meta_buf);
 
@@ -829,7 +834,8 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
                             char graph_overlay[VX_BUF_SIZE_32];
                             snprintf(graph_overlay,
                                      sizeof(graph_overlay),
-                                     "Live: %.1f%%",
+                                     "%s: %.1f%%",
+                                     selected_proc->name,
                                      selected_proc->cpu_usage);
 
                             //------------------------------
@@ -1374,16 +1380,18 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[1, 2, 3] Sort processes via (PID, CPU, Memory usage)");
         talos_gui_text("[UP, k]   Go up in the process list");
         talos_gui_text("[Down, j] Go down in the process list");
+        talos_gui_text("[/]       Open search bar");
         talos_gui_text("[g]       Select top process in the list");
-        talos_gui_text("[G]       Select bottom process in the list");
+        talos_gui_text("[G]       Toggle Telemetry window fullscreen");
         talos_gui_text("[o]       Change CPU core layout view");
         talos_gui_text("[d]       Kill or Force Quit the selected process");
         talos_gui_text("[F1]      Toggle About window");
-        talos_gui_text("[F2]      Toggle Limited/Normal modes");
-        talos_gui_text("[F3]      Toggle Boosted/Normal modes");
+        talos_gui_text("[F2]      Toggle Limited mode");
+        talos_gui_text("[F3]      Toggle Boosted mode");
         talos_gui_text("[F4]      Cycle Fan modes (if installed)");
         talos_gui_text("[F5]      Cycle Governor modes (if installed)");
-        talos_gui_text("[F10]     Open Extended CPU details window");
+        talos_gui_text("[F6]      Cycle Telemetry samples interval");
+        talos_gui_text("[F10]     Toggle Extended CPU details window");
         talos_gui_text("[F11]     Toggle Fullscreen mode");
         talos_gui_text("[F12]     Exit Talos");
 
@@ -1496,7 +1504,7 @@ void talos_render_stage_splash(struct talos_ctx *ctx, void *data)
 
     *timer += ctx->dt;
 
-    const f32 MAX_SPLASH_TIME = 1.7f;
+    const f32 MAX_SPLASH_TIME = 1.2f;
 
     f32 progress = *timer / MAX_SPLASH_TIME;
     if (progress > 1.0f)

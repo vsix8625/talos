@@ -602,3 +602,8 @@ TALOS_API void talos_gui_set_scroll_from_index(i32 visual_row_idx)
     f32 row_height = GetTextLineHeightWithSpacing();
     SetScrollY((f32) visual_row_idx * row_height);
 }
+
+TALOS_API void talos_gui_set_window_focus(const char *name)
+{
+    SetWindowFocus(name);
+}
