@@ -9,13 +9,15 @@
 
 #include <stdatomic.h>
 
-typedef struct
+typedef struct talos_state_s
 {
     talos_cpu     cpu;
     talos_mem     mem;
     talos_temps   temps;
     talos_disk_io disk;
     talos_net_io  net;
+
+    talos_storage_ctx storage;
 
     char net_interface[VX_BUF_SIZE_32];
     char disk_device[VX_BUF_SIZE_32];

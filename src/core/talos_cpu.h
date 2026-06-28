@@ -34,6 +34,7 @@ typedef struct talos_cpu_s
 typedef struct talos_cpu_info_s
 {
     char model_name[VX_BUF_SIZE_128];
+    char version[VX_BUF_SIZE_256];
     char vendor_id[VX_BUF_SIZE_64];
     char architecture[VX_BUF_SIZE_32];
     u32  total_cores;

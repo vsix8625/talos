@@ -411,7 +411,7 @@ void talos_cpu_sysfs_bounds(talos_cpu_info *info)
     FILE *f_sib = fopen("/sys/devices/system/cpu/cpu0/topology/thread_siblings_list", "r");
     if (f_sib)
     {
-        char sib_buf[64];
+        char sib_buf[VX_BUF_SIZE_64];
         if (fgets(sib_buf, sizeof(sib_buf), f_sib))
         {
             u32 count = 1;
@@ -469,5 +469,19 @@ void talos_cpu_sysfs_bounds(talos_cpu_info *info)
             }
         }
         fclose(f_cpu);
+
+        FILE *version = fopen("/proc/version", "r");
+        if (version)
+        {
+            size_t bytes_read         = fread(info->version, 1, sizeof(info->version) - 1, version);
+            info->version[bytes_read] = '\0';
+
+            if (bytes_read > 0 && info->version[bytes_read - 1] == '\n')
+            {
+                info->version[bytes_read - 1] = '\0';
+            }
+
+            fclose(version);
+        }
     }
 }

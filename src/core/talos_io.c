@@ -23,7 +23,7 @@ bool talos_disk_read(talos_disk_io *io, const char *target_dev)
 
     while (fgets(line, sizeof(line), fp))
     {
-        char dev_name[32];
+        char dev_name[VX_BUF_SIZE_32];
 
         i32 fields = sscanf(line,
                             "%*u %*u %31s %*u %*u %" SCNu64 " %*u %*u %*u %" SCNu64,

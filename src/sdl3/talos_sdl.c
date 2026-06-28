@@ -47,13 +47,18 @@ vx_status talos_sdl_init(struct talos_ctx *ctx)
 
     ctx->width  = w;
     ctx->height = h;
-
     ctx->window = window;
 
     if (talos_gl_init(ctx) != VX_OK)
     {
         talos_sdl_shutdown(ctx);
         return VX_ERROR;
+    }
+
+    u32 flags = SDL_GetWindowFlags(ctx->window);
+    if (!(flags & SDL_WINDOW_FULLSCREEN))
+    {
+        SDL_SetWindowFullscreen(ctx->window, true);
     }
 
     ctx->state |= TALOS_RUNTIME_STATE_INITIALIZED;

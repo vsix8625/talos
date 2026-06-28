@@ -155,6 +155,7 @@ typedef enum talos_imgui_key
     TALOS_KEY_X     = 569,
     TALOS_KEY_Y     = 570,
     TALOS_KEY_Z     = 571,
+    TALOS_KEY_F9    = 580,
     TALOS_KEY_F10   = 581,
     TALOS_KEY_F11   = 582,
     TALOS_KEY_F12   = 583,

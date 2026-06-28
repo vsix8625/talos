@@ -13,6 +13,9 @@ static void *update_loop(void *arg)
 {
     talos_state *state = (talos_state *) arg;
 
+    u32 storage_ticks = 0;
+    talos_storage_update(&state->storage);  // update storage 1 time before loop
+
     while (atomic_load(&state->running))
     {
         talos_cpu_update(&state->cpu);
@@ -22,6 +25,13 @@ static void *update_loop(void *arg)
 
         talos_disk_read(&state->disk, state->disk_device);
         talos_net_read(&state->net, state->net_interface);
+
+        storage_ticks++;
+        if (storage_ticks >= 60)
+        {
+            talos_storage_update(&state->storage);
+            storage_ticks = 0;
+        }
 
         i32 timeout_ms = 1000;
 

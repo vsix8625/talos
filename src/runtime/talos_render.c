@@ -31,6 +31,7 @@ static u32  proc_list_filter(const talos_proc_list *proc_list,
                              i32                   *out_filtered_indices);
 
 static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details);
+void        draw_storage(struct talos_ctx *ctx, talos_storage_ctx *storage);
 
 //----------------------------------------------------------------------------------------------------
 
@@ -976,8 +977,25 @@ void talos_ui_render_dashboard(struct talos_ctx *ctx,
         talos_gui_begin_group();
         {
             talos_gui_text("Disk Storage I/O");
-            talos_gui_spacing();
 
+            //--------------
+            // Storage info
+
+            static i32 show_disk_details = 0;
+
+            if (talos_gui_is_key_pressed(TALOS_KEY_F9))
+            {
+                show_disk_details = !show_disk_details;
+            }
+
+            if (show_disk_details)
+            {
+                draw_storage(ctx, &state->storage);
+            }
+
+            //--------------
+
+            talos_gui_spacing();
             snprintf(io_net_buf, sizeof(io_net_buf), "Read:  %.2f MB/s", state->disk.read_mb_sec);
             talos_gui_text(io_net_buf);
 
@@ -1391,6 +1409,7 @@ void talos_ui_render_about_popup(struct talos_ctx *ctx)
         talos_gui_text("[F4]      Cycle Fan modes (if installed)");
         talos_gui_text("[F5]      Cycle Governor modes (if installed)");
         talos_gui_text("[F6]      Cycle Telemetry samples interval");
+        talos_gui_text("[F9]      Toggle Storage information");
         talos_gui_text("[F10]     Toggle Extended CPU details window");
         talos_gui_text("[F11]     Toggle Fullscreen mode");
         talos_gui_text("[F12]     Exit Talos");
@@ -1839,8 +1858,8 @@ static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details)
         return;
     }
 
-    f32 window_w = (f32) ctx->width * 0.55f;
-    f32 window_h = (f32) ctx->height * 0.75f;
+    f32 window_w = (f32) ctx->width * 0.85f;
+    f32 window_h = (f32) ctx->height * 0.85f;
 
     if (window_w < 500.0f)
     {
@@ -1867,36 +1886,40 @@ static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details)
     {
         talos_cpu_info *hw = ctx->cpu_info;
 
-        char format_buf[VX_BUF_SIZE_256];
+        char format_buf[VX_BUF_SIZE_512];
 
         talos_gui_text("SUMMARY");
         talos_gui_separator();
 
-        snprintf(format_buf, sizeof(format_buf), "Model Name:     %s", hw->model_name);
+        snprintf(format_buf, sizeof(format_buf), "%-16s %s", "Model Name:", hw->model_name);
         talos_gui_text(format_buf);
 
         snprintf(format_buf,
                  sizeof(format_buf),
-                 "Architecture:   %s (Vendor: %s)",
+                 "%-16s %s (Vendor: %s)",
+                 "Architecture:",
                  hw->architecture,
                  hw->vendor_id);
         talos_gui_text(format_buf);
 
         snprintf(format_buf,
                  sizeof(format_buf),
-                 "Cores / Threads: %d Cores / %d Threads per core",
+                 "%-16s %d Cores / %d Threads per core",
+                 "Cores/Threads:",
                  hw->total_cores,
                  hw->threads_per_core);
         talos_gui_text(format_buf);
 
         snprintf(format_buf,
                  sizeof(format_buf),
-                 "Clock Limits:    Max: %.1f MHz  |  Min: %.1f MHz",
+                 "%-16s Max: %.1f MHz  |  Min: %.1f MHz",
+                 "Clock Limits:",
                  hw->max_mhz,
                  hw->min_mhz);
         talos_gui_text(format_buf);
 
-        snprintf(format_buf, sizeof(format_buf), "NUMA Topology:  %d Node(s)", hw->numa_nodes);
+        snprintf(
+            format_buf, sizeof(format_buf), "%-16s %d Node(s)", "NUMA Topology:", hw->numa_nodes);
         talos_gui_text(format_buf);
 
         talos_gui_spacing();
@@ -1921,6 +1944,14 @@ static void render_cpu_details(struct talos_ctx *ctx, i32 *show_cpu_details)
         talos_gui_separator();
         talos_gui_text_wrapped(hw->flags);
 
+        talos_gui_spacing();
+        talos_gui_text("OS VERSION INFORMATION");
+        talos_gui_separator();
+
+        snprintf(format_buf, sizeof(format_buf), "%s", hw->version);
+        talos_gui_text_wrapped(format_buf);
+
+        talos_gui_separator();
         talos_gui_spacing();
         if (talos_gui_button("Close") || talos_gui_is_key_pressed(TALOS_KEY_ESCAPE))
         {
@@ -1982,5 +2013,86 @@ static void format_time_buf(i32 total_secs, char *out_buf, size_t size)
         {
             snprintf(out_buf, size, "%dh", hrs);
         }
+    }
+}
+
+void draw_storage(struct talos_ctx *ctx, talos_storage_ctx *storage)
+{
+    static bool use_binary_units = true;
+
+    f32 window_w = (f32) ctx->width * 0.85f;
+    f32 window_h = (f32) ctx->height * 0.85f;
+
+    if (window_w < 500.0f)
+    {
+        window_w = 500.0f;
+    }
+
+    if (window_h < 420.0f)
+    {
+        window_h = 420.0f;
+    }
+
+    f32 pos_x = ((f32) ctx->width - window_w) * 0.5f;
+    f32 pos_y = ((f32) ctx->height - window_h) * 0.5f;
+
+    talos_gui_set_next_window_pos(pos_x, pos_y);
+    talos_gui_set_next_window_size(window_w, window_h);
+
+    i32 window_flags =
+        TALOS_GUI_WINDOW_NO_RESIZE | TALOS_GUI_WINDOW_NO_MOVE | TALOS_GUI_WINDOW_NO_COLLAPSE;
+
+    if (talos_gui_begin("Storage Status", nullptr, window_flags))
+    {
+        if (talos_gui_button(use_binary_units ? "Toggle to Decimal (GB)"
+                                              : "Toggle to Binary (GiB)"))
+        {
+            use_binary_units = !use_binary_units;
+        }
+
+        talos_gui_spacing();
+        talos_gui_text("MOUNTED FILESYSTEMS");
+        talos_gui_separator();
+
+        f64 divisor = use_binary_units ? (1024.0 * 1024.0 * 1024.0) : (1000.0 * 1000.0 * 1000.0);
+        const char *unit = use_binary_units ? "GiB" : "GB";
+
+        char format_buf[VX_BUF_SIZE_512];
+        snprintf(format_buf,
+                 sizeof(format_buf),
+                 "%-16s %-12s %-12s %-12s %-8s",
+                 "Device",
+                 "Mount",
+                 "Used",
+                 "Total",
+                 "Free %");
+        talos_gui_text(format_buf);
+        talos_gui_separator();
+
+        for (u32 i = 0; i < storage->disk_count; i++)
+        {
+            talos_disk_info *disk = &storage->disks[i];
+
+            f64 used_display  = (f64) disk->used_bytes / divisor;
+            f64 total_display = (f64) disk->total_bytes / divisor;
+
+            char used_str[VX_BUF_SIZE_32];
+            char total_str[VX_BUF_SIZE_32];
+            snprintf(used_str, sizeof(used_str), "%.1f %s", used_display, unit);
+            snprintf(total_str, sizeof(total_str), "%.1f %s", total_display, unit);
+
+            snprintf(format_buf,
+                     sizeof(format_buf),
+                     "%-16s %-12s %-12s %-12s %2.0f%%",
+                     disk->device,
+                     disk->mount_path,
+                     used_str,
+                     total_str,
+                     disk->free_percent);
+
+            talos_gui_text(format_buf);
+        }
+
+        talos_gui_end();
     }
 }
