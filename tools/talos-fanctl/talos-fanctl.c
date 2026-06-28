@@ -16,7 +16,7 @@ static int find_universal_pwm_path(char *dest_path, size_t max_len)
         return -1;
     }
     struct dirent *entry;
-    char           check_path[256];
+    char           check_path[512];
     while ((entry = readdir(dir)) != NULL)
     {
         if (strncmp(entry->d_name, "hwmon", 5) == 0)

@@ -111,8 +111,9 @@ void talos_update_stop(talos_state *state)
 
     atomic_store(&state->running, false);
 
-    u64 wake_signal = 1;
-    (void) write(state->shutdown_fd, &wake_signal, sizeof(wake_signal));
+    u64 wake_signal   = 1;
+    i32 unused_result = write(state->shutdown_fd, &wake_signal, sizeof(wake_signal));
+    VX_CAST(void, unused_result);
 
     vx_thread_join(&state->thread);
 
